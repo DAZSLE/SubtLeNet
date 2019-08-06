@@ -1,12 +1,17 @@
 {
-	"base_dir": "/uscms/home/rbisnath/nobackup/pkl_files/jet_level",
+	"base_dir": "/uscms/home/rbisnath/nobackup/pkl_files/jet_charge/",
 	"filenames": {
 			"BGHToWW":"BGHToWW_x",
 			"BGHToZZ":"BGHToZZ_x"
 		      },
-	"per_part": 0,
+	"displaynames": {
+			"BGHToWW": "W->cs",
+			"BGHToZZ": "Z->cc"
+			},
+	"per_part": 1,
 	"combine_particles": 1,
-	"jet_cut": "df.fj_pt > 200",
-	"cut_vars": ["fj_cpf_pfType"],
-	"particle_cuts": ["df['{}'] != 0"]
+	"!jet_cut": "df.fj_pt > 200",
+	"jet_cut" : "df.fj_pt != None",
+	"cut_vars": ["fj_cpf_pt"],
+	"particle_cuts": ["df['{}'] != None"]
 }

@@ -3,14 +3,22 @@ import pandas as pd
 import argparse
 import json
 import ROOT
+import sys
+
+# https://stackoverflow.com/questions/3160699/python-progress-bar
+progress_bar_width = 40
+# setup toolbar
+sys.stdout.write("[%s]" % (" " * progress_bar_width))
+sys.stdout.flush()
+sys.stdout.write("\b" * (progress_bar_width+1)) # return to start of line, after '['
 
 parser = argparse.ArgumentParser()
 #might want to add an --out arg in case we want to leave the original .pkl
+#this script should be able to use the same .json files as plot.py
 parser.add_argument('--json', type=str, help='json file pointing to the .pkl files to be edited')
 args = parser.parse_args()
 
 with open(args.json) as jsonfile:
-    #this script should be able to use the same .json files as plot.py
     payload = json.load(jsonfile)
     base_dir = payload['base_dir']
     filenames = payload['filenames']
@@ -54,13 +62,56 @@ def make_jpm_vars():
     make_jetplusmet_mass()
     make_jetplusmet_pt()
 
+#jet_charge
+def calc_jet_charge(kappa, lambda_, p_qs, p_pts): #p_qs = [$fj_cpf_q[0], ...]
+    total = 0
+
+    if len(p_qs) != len(p_pts):
+        raise ValueError("calc_jet_charge: mismatched lists")
+
+    for i in range(len(p_qs)):
+        total += p_qs[i] * (p_pts[i] ** kappa)
+
+    return total
+
+def make_jet_charge(kappa=0, lambda_=0, p_q='fj_cpf_q', p_pt='fj_cpf_pt'):
+    col_name = 'jet_charge_k{}_l{}'.format(kappa, lambda_)
+    print "making: ", col_name
+    for k, v in dfs.iteritems():
+        p_qvars = [col for col in v.columns if p_q in col]
+        p_ptvars = [col for col in v.columns if p_pt in col]
+        
+        npart = len(p_qvars)
+
+        p_qs = v[p_qvars]
+        p_pts = v[p_ptvars]
+        
+        one_percent = v.shape[0] / 100
+        percent_per_tick = 100 / progress_bar_width
+        milestone = one_percent * percent_per_tick
+        for i in range(v.shape[0]):
+            v.at[i, col_name] = calc_jet_charge(kappa, lambda_, p_qs.iloc[i], p_pts.iloc[i])
+            if i % milestone == 0:
+                sys.stdout.write("-")
+                sys.stdout.flush()
+        print "\n"
+
+sys.stdout.write("]\n") # this ends the progress bar
+
 def save():
     for k, v in dfs.iteritems():
+        print v.head()
         v.to_pickle(base_dir+filenames[k]+'.pkl')
     return
 
-make_dPhi_metjet()
+#make_dPhi_metjet()
 #make_jpm_vars()
+#make_jet_charge(kappa=0, lambda_=0)
+
+kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
+for k in kappas:
+    make_jet_charge(kappa=k, lambda_=0)
+
 save()
 
 

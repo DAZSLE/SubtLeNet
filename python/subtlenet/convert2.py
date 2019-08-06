@@ -12,7 +12,8 @@ parser.add_argument('--out', type=str, help='dir where output files will be stor
 parser.add_argument('--name', type=str, help='name of sample to process')
 parser.add_argument('--json', type=str, help='json file controlling which files/samples/features are used')
 parser.add_argument('--background', action='store_true', help='use background cut instead of signal cut')
-parser.add_argument('--verbosity', type=int, nargs='?', default=1, help='0-no printing, 1-print df.head() of output files, 2-print info about x at different stages and 1, 3-print the list of variables available in the input .root file')
+parser.add_argument('--verbosity', type=int, nargs='?', default=1, help='0-no printing, 1-print df.head() of output files (default), 2-print info about x at different stages and 1, 3-print the list of variables available in the input .root file')
+parser.add_argument('--dry', action='store_true', help='if enabled, runs the whole program but doesn\'t save to .pkl files')
 
 args = parser.parse_args()
 
@@ -90,13 +91,15 @@ def reformat_dict(d):
     vs = []
 
     for k, v in d.iteritems():
+        if VERBOSITY == 2: print "in reformat_dict, k, v.shape: ", k, v.shape
         if v.ndim == 1:
             ks.append(k)
             vs.append(v)
         elif v.ndim == 2:
-            for i in range(nparticles):
+            for i in range(v.shape[1]):
+                if i == nparticles: break
                 ks.append(k+"[{}]".format(i))
-                vs.append([v[j][i] for j in range(len(v))])
+                vs.append([v[j][i] for j in range(v.shape[0])])
         else:
             raise ValueError("Too many dimensions")
 
@@ -139,7 +142,7 @@ def is_extra(s):
     if m:
         return int(m.group(0)) >= nparticles
     return True
-
+'''
 if per_part:
     extra_columns = list(filter(is_extra, list(X.columns)))
     weird_columns = list(filter(lambda s: "fj_pt" in s, list(X.columns)))
@@ -149,6 +152,8 @@ if per_part:
     X = X.drop(in_cut_vars_only + weird_columns + extra_columns, axis=1)
 else:
     X = X.drop(in_cut_vars_only, axis=1)
+'''
+X = X.drop(in_cut_vars_only, axis=1)
 
 if VERBOSITY == 2:
     print '\nX.columns:\n', list(X.columns)
@@ -169,9 +174,10 @@ def save(df, label):
         print '\n'+label+'\n', df.shape, '\n'
         print df.head()
 
-save(X, 'x')
-save(Y, 'y')
-save(W, 'w')
-save(substructure, 'ss_vars')
-save(decayType, 'decayType')
+if not args.dry:
+    save(X, 'x')
+    save(Y, 'y')
+    save(W, 'w')
+    save(substructure, 'ss_vars')
+    save(decayType, 'decayType')
 

@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
@@ -11,7 +13,7 @@ import os
 parser = argparse.ArgumentParser()
 parser.add_argument('--out', type=str, help='filename of output pdf (the .pdf extension is optional)')
 parser.add_argument('--json', type=str, help='json file controlling the input files used')
-parser.add_argument('--maxz', type=int, nargs='?', action='store', help='filter data with zscores above this value')
+parser.add_argument('--trim', type=float, nargs='?', action='store', help='slice this proportion of items from both ends of the Data')
 parser.add_argument('--dpi', type=int, nargs='?', action='store', help='dpi for output pdf')
 args = parser.parse_args()
 
@@ -37,26 +39,26 @@ dpi = 100
 if args.dpi:
     dpi = args.dpi
 
-if args.maxz:
-    max_zscore = args.maxz
-
 #parsing the json file
 with open(args.json) as jsonfile:
     payload = json.load(jsonfile)
     base_dir = payload['base_dir']
     filenames = payload['filenames']
-    per_part = payload['per_part']
-    combine_particles = payload['combine_particles']
+    displaynames = payload['displaynames']
+    per_part = bool(payload['per_part'])
+    print "particle level: ", per_part
+    combine_particles = bool(payload['combine_particles'])
     if per_part:
         cut_vars = payload['cut_vars']
         cuts = payload['particle_cuts']
     else:
-        cut = payload['jet_cut']
+        jet_cut = payload['jet_cut']
 
 #reading data from the .pkl files and applying selections
 dfs = {}
 
 for k, v in filenames.iteritems():
+    #print "dfs[k] = pd.read_pickle(base_dir+v+.pkl)", k, v
     dfs[k] = pd.read_pickle(base_dir+v+".pkl")
 
 var_names = list(dfs[list(dfs)[0]])
@@ -69,13 +71,13 @@ def apply_particle_cuts():
         #all_cut_vars = [var+"[0]" for var in cut_vars]
         #print "all_cut_vars: ", all_cut_vars
         for k, df in dfs.iteritems():
-            print "df.shape before cuts: ", df.shape
+            #print k, "\ndf.shape before cuts: ", df.shape
             for i in range(len(cuts)):
                 for var in all_cut_vars[i]:
                     #print cuts[i].format(var)
                     df = df[eval(cuts[i].format(var))]
-            print "df.shape after cuts: ", df.shape
-            dfs[k] = df
+            #print "df.shape after cuts: ", df.shape
+            dfs[k] = df.reset_index(drop=True)
 
 def combine_particle_columns():
     nparticles = len([var for var in var_names if var_names[0][:-3] in var])
@@ -89,30 +91,45 @@ def combine_particle_columns():
             #print "combine_particle_columns: current var, columns", var, columns
             combined = pd.concat([df[col] for col in columns], axis=0)
             condensed_data.append(combined)
+        #print "condensed_data[0]: ", type(condensed_data[0]), condensed_data[0].head()
+        #print len(gen_var_names), len(condensed_data)
+        #print gen_var_names
+        condensed_data = [s.reset_index(drop=True) for s in condensed_data]
         df = pd.concat(condensed_data, axis=1, keys=gen_var_names)
+        #df = pd.DataFrame(data=dict(zip(gen_var_names, condensed_data)))
         #print "combine_particle_columns: df.head after changes\n", df.head(), df.shape, '\n'
         dfs[k] = df
 
 if per_part:
-    apply_particle_cuts()
-    if combine_particles:
-        combine_particle_columns()
+    pass#apply_particle_cuts()
+    #if combine_particles:
+    #    combine_particle_columns()
 else:
-    if cut:
-        for df in dfs.itervalues():
-            df = df[eval(cut)]
+    if jet_cut:
+        for k, df in dfs.iteritems():
+            dfs[k] = df[eval(cut)]
 
 var_names = list(dfs[list(dfs)[0]])
 
 # functions to make individual plots
+
+def trim(data, p):
+    #print "data.shape before trim: ", data.shape
+    data = pd.Series(data=stats.trimboth(data, p))
+    #print "data.shape after trim: ", data.shape
+
+    return data
+
 def make_hist(var):
     #Plots a histogram comparing var across all dataframes
-    plt.figure(figsize=(4, 4), dpi=dpi)
+    plt.figure()#(figsize=(4, 4), dpi=dpi)
     plt.xlabel(var)
     plt.title(var)
-    
+    '''
     min_ = min([v[var].min() for v in dfs.itervalues()])
     max_ = max([v[var].max() for v in dfs.itervalues()])
+
+    print var, "min: {}, max: {}".format(min_, max_)
 
     if min_ == max_:
         if np.abs(min_) < 0.0001:
@@ -125,14 +142,29 @@ def make_hist(var):
     plt.xlim(min_, max_)
     bins = np.linspace(min_, max_, 100)
     #print min_, max_, '\n', bins
+    '''
 
+    '''
     for k, v in dfs.iteritems():
+        #print "in make_hist, k:", k
         if args.maxz:
             trimmed_data = v[var][(np.abs(stats.zscore(v[var])) < max_zscore)]
-            trimmed_data.plot.hist(bins, label=k, histtype='step', density=True)
+            trimmed_data.plot.hist(bins, label=displaynames[k], histtype='step', density=True)
         else:
-            v[var].plot.hist(bins, label=k, histtype='step', density=True)
-    
+            v[var].plot.hist(bins, label=displaynames[k], histtype='step', density=True)
+    '''
+
+    for k, v in dfs.iteritems():
+        data = v[var]
+        if 'jet_charge' in var:
+            data = data.apply(lambda x: abs(x))
+        if args.trim:
+            data = trim(data, args.trim)
+        min_ = data.min()
+        max_ = data.max()
+        bins = np.linspace(min_, max_, 100)
+        data.plot.hist(bins, label=displaynames[k], histtype='step', density=True)
+
     plt.legend(loc='upper right')
     
     PdfPages.savefig(out, dpi=dpi)
@@ -150,7 +182,7 @@ def make_plot(xvar, yvar):
 
         x = df[xvar]
         y = df[yvar]
-       
+
         kwargs = {'ls': 'None'}
         
         plt.plot(x, y, 'bo', **kwargs)
@@ -170,13 +202,14 @@ def make_hists(vars_to_plot):
             problems[var] = str(e)
     return problems
 
+print "var_names: ", var_names
 #make_hists(var_names)
-#make_hist('fj_cpf_pfType')
+make_hist('jet_charge_k0_l0')
 
 #make_plot('fj_cpf_pfType[0]', 'fj_cpf_dz[0]')
 
-kinematics = ['fj_cpf_pt', 'fj_cpf_eta', 'fj_cpf_phi', 'fj_cpf_dz', 'fj_cpf_pup', 'fj_cpf_q']
-old_kinematics = ['fj_cpf_pt[0]', 'fj_cpf_eta[0]', 'fj_cpf_phi[0]', 'fj_cpf_dz[0]', 'fj_cpf_pup[0]', 'fj_cpf_q[0]']
-make_hists(kinematics)
+#kinematics = ['fj_cpf_pt', 'fj_cpf_eta', 'fj_cpf_phi', 'fj_cpf_dz', 'fj_cpf_pup', 'fj_cpf_q']
+#old_kinematics = ['fj_cpf_pt[0]', 'fj_cpf_eta[0]', 'fj_cpf_phi[0]', 'fj_cpf_dz[0]', 'fj_cpf_pup[0]', 'fj_cpf_q[0]']
+#make_hists(kinematics)
 
 out.close()

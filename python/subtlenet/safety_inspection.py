@@ -1,11 +1,11 @@
 import pandas as pd
 
-base = '/uscms/home/rbisnath/nobackup/pkl_files/jet_level/'
+base = '/uscms/home/rbisnath/nobackup/pkl_files/cpf_4vect/'
 
 letters = ['x', 'y', 'w', 'ss_vars', 'decayType']
 
 sigs = [pd.read_pickle(base+"BGHToWW_"+l+".pkl") for l in letters]
-bkgs = [pd.read_pickle(base+"QCD_"+l+".pkl") for l in letters]
+bkgs = [pd.read_pickle(base+"BGHToZZ_"+l+".pkl") for l in letters]
 
 print "file order is x, y, w, ss_vars, decayType"
 print "df.shape for signal files: "
