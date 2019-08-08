@@ -10,8 +10,8 @@ import re
 parser = argparse.ArgumentParser()
 parser.add_argument('--out', type=str, help='dir where output files will be stored')
 parser.add_argument('--name', type=str, help='name of sample to process')
-parser.add_argument('--json', type=str, help='json file controlling which files/samples/features are used')
-parser.add_argument('--background', action='store_true', help='use background cut instead of signal cut')
+parser.add_argument('--json', type=str, help='json file controlling which files/samples/features/cuts are used')
+parser.add_argument('--background', action='store_true', help='use background cut instead of signal cut, also sets y to 0')
 parser.add_argument('--verbosity', type=int, nargs='?', default=1, help='0-no printing, 1-print df.head() of output files (default), 2-print info about x at different stages and 1, 3-print the list of variables available in the input .root file')
 parser.add_argument('--dry', action='store_true', help='if enabled, runs the whole program but doesn\'t save to .pkl files')
 
@@ -46,9 +46,7 @@ with open(args.json) as jsonfile:
     if VERBOSITY != 0: print "per_part: ", per_part
     nparticles = payload['nparticles']
 
-    y = 0
     for sample in payload['samples']:
-        y += 1
         if sample['name'] == args.name:
             samples = sample['samples']
     
@@ -159,6 +157,7 @@ if VERBOSITY == 2:
     print '\nX.columns:\n', list(X.columns)
     print "dtypes: ", X.dtypes
 W = get_branches_as_df([weight], 'weight')
+y = 0 if args.background else 1
 Y = pd.DataFrame(data=y*np.ones(shape=W.shape))
 substructure = get_branches_as_df(substructure_vars, 'substructure')
 decayType = get_branches_as_df(['fj_decayType'], 'decayType')
@@ -173,6 +172,7 @@ def save(df, label):
     if VERBOSITY == 1 or VERBOSITY == 2:
         print '\n'+label+'\n', df.shape, '\n'
         print df.head()
+        print "n nan: ", df.isnull().sum().sum()
 
 if not args.dry:
     save(X, 'x')

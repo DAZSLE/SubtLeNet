@@ -156,8 +156,11 @@ def make_hist(var):
 
     for k, v in dfs.iteritems():
         data = v[var]
-        if 'jet_charge' in var:
-            data = data.apply(lambda x: abs(x))
+
+        # special rules
+        #if 'jet_charge' in var:
+        #    data = data.apply(lambda x: abs(x))
+
         if args.trim:
             data = trim(data, args.trim)
         min_ = data.min()
@@ -202,9 +205,11 @@ def make_hists(vars_to_plot):
             problems[var] = str(e)
     return problems
 
-print "var_names: ", var_names
+#print "var_names: ", var_names
 #make_hists(var_names)
-make_hist('jet_charge_k0_l0')
+#make_hist('jet_charge_k0_l0')
+j_c_vars = [v for v in var_names if 'jet_charge' in v]
+make_hists(j_c_vars)
 
 #make_plot('fj_cpf_pfType[0]', 'fj_cpf_dz[0]')
 

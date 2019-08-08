@@ -65,7 +65,7 @@ def make_jpm_vars():
 #jet_charge
 def calc_jet_charge(kappa, lambda_, p_qs, p_pts): #p_qs = [$fj_cpf_q[0], ...]
     total = 0
-
+    #print "p_qs:", p_qs
     if len(p_qs) != len(p_pts):
         raise ValueError("calc_jet_charge: mismatched lists")
 
@@ -80,22 +80,29 @@ def make_jet_charge(kappa=0, lambda_=0, p_q='fj_cpf_q', p_pt='fj_cpf_pt'):
     for k, v in dfs.iteritems():
         p_qvars = [col for col in v.columns if p_q in col]
         p_ptvars = [col for col in v.columns if p_pt in col]
-        
-        npart = len(p_qvars)
 
-        p_qs = v[p_qvars]
-        p_pts = v[p_ptvars]
-        
+        qs = v[p_qvars].values
+        pts = v[p_ptvars].values
+
         one_percent = v.shape[0] / 100
         percent_per_tick = 100 / progress_bar_width
         milestone = one_percent * percent_per_tick
+        
         for i in range(v.shape[0]):
-            v.at[i, col_name] = calc_jet_charge(kappa, lambda_, p_qs.iloc[i], p_pts.iloc[i])
+            v.at[i, col_name] = calc_jet_charge(kappa, lambda_, qs[i], pts[i])
             if i % milestone == 0:
                 sys.stdout.write("-")
                 sys.stdout.flush()
         print "\n"
-
+        '''
+        p_qs = v[p_qvars]
+        p_pts = v[p_ptvars]
+        
+        
+        for i in range(v.shape[0]):
+            v.at[i, col_name] = calc_jet_charge(kappa, lambda_, p_qs.iloc[i], p_pts.iloc[i])
+            
+        '''
 sys.stdout.write("]\n") # this ends the progress bar
 
 def save():
@@ -111,7 +118,7 @@ def save():
 kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
 for k in kappas:
     make_jet_charge(kappa=k, lambda_=0)
-
+    
 save()
 
 

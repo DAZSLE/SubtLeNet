@@ -1,6 +1,6 @@
 import pandas as pd
 
-base = '/uscms/home/rbisnath/nobackup/pkl_files/cpf_4vect/'
+base = '/uscms/home/rbisnath/nobackup/pkl_files/jet_level/'
 
 letters = ['x', 'y', 'w', 'ss_vars', 'decayType']
 
