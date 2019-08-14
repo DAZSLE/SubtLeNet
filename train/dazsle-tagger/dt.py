@@ -41,9 +41,8 @@ class Sample(object):
         if args.pkl:
             self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x')).values[:nrows]
             self.SS = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'ss_vars')).values[:nrows]
-            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] #####
+            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] ##### switch w to j_pt if using --make_weights
             self.flatY = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'y')).values.flatten()[:nrows]
-            #self.j_pt = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows]
         else:
             self.X = np.load('%s/%s_%s.npy'%(base, name, 'x'))[:nrows]
             self.SS = np.load('%s/%s_%s.npy'%(base, name, 'ss_vars'))[:nrows]
@@ -167,9 +166,7 @@ class ClassModel(object):
         self.vSS = np.vstack([s.SS[s.vidx] for s in samples])
 
         #print "tW before (i.e. fj_pt): ", self.tW.shape, self.tW[:10]
-        #np.save(self.name+"tW_imported", self.tW)
-        #np.save(self.name+"vW_imported", self.vW)
-        #####
+        ##### uncomment below if using --make_weights
         
         if args.make_weights:
             self.tW = calc_ptweights(self.tW, self.tflatY)
@@ -182,16 +179,35 @@ class ClassModel(object):
                 self.vW = np.load("vW.npy")
             except:
                 print "Error loading weights from numpy files"
-        
-        #print "\ntW after: ", self.tW.shape, self.tW[600000:600100]
 
-        #'''
+        #print "\ntW after: ", self.tW.shape, self.tW[600000:600100]
+                
+        #separating the weights into signal/bkg and saving
+        if 'Dense' in self.name and args.make_weights:
+            signal_weights = []
+            bkg_weights = []
+        
+            for x in range(len(self.tW)):
+                if self.tflatY[x] == 1:
+                    signal_weights.append(self.tW[x])
+                else:
+                    bkg_weights.append(self.tW[x])
+                    
+            for x in range(len(self.vW)):
+                if self.vflatY[x] == 1:
+                    signal_weights.append(self.vW[x])
+                else:
+                    bkg_weights.append(self.vW[x])
+
+            np.save("dazsle_weights_signal.npy", signal_weights)
+            np.save("dazsle_weights_bkg.npy", bkg_weights)
+                
+        #normalizing the weights
         for i in xrange(self.tY.shape[1]):
-          tot = np.sum(self.tW[self.tY[:,i] == 1], dtype=np.int64) 
-          #print "tot: ", tot
-          self.tW[self.tY[:,i] == 1] *= 100.0/tot
-          self.vW[self.vY[:,i] == 1] *= 100.0/tot
-        #'''
+            tot = np.sum(self.tW[self.tY[:,i] == 1], dtype=np.int64) 
+            #print "tot: ", tot
+            self.tW[self.tY[:,i] == 1] *= 100.0/tot
+            self.vW[self.vY[:,i] == 1] *= 100.0/tot
         
         #print "shapes of vX Y and W: ", self.vX.shape, self.vY.shape, self.vW.shape
         #print "self.tX Y and W", self.tX, "\n", self.tY, "\n", self.tW
@@ -241,9 +257,9 @@ class ClassModel(object):
 
     def train(self, samples):
         #####
-        history = self.model.fit(self.tX, self.tY, sample_weight=self.tW, 
+        history = self.model.fit(self.tX, self.tY, #sample_weight=self.tW, 
                                  batch_size=10000, epochs=10, shuffle=True,
-                                 validation_data=(self.vX, self.vY, self.vW))
+                                 validation_data=(self.vX, self.vY))#, self.vW))
 
         with open('history.log','w') as flog:
             history = history.history
