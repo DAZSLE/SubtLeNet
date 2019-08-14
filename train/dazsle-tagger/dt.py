@@ -24,7 +24,7 @@ MULTICLASS = False
 REGRESSION = False
 np.random.seed(5)
 
-basedir = '/home/rbisnath/pkl_files/cpf_4vect'
+basedir = '/home/rbisnath/pkl_files/jet_level'
 Nqcd = 1200000
 Nsig = 1200000
 
@@ -41,11 +41,14 @@ class Sample(object):
         if args.pkl:
             self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x')).values[:nrows]
             self.SS = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'ss_vars')).values[:nrows]
-            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'w')).values.flatten()[:nrows]
+            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] #####
+            self.flatY = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'y')).values.flatten()[:nrows]
+            #self.j_pt = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows]
         else:
             self.X = np.load('%s/%s_%s.npy'%(base, name, 'x'))[:nrows]
             self.SS = np.load('%s/%s_%s.npy'%(base, name, 'ss_vars'))[:nrows]
             self.W = np.load('%s/%s_%s.npy'%(base, name, 'w'))[:nrows]
+            self.flatY = np.load('%s/%s_%s.npy'%(base, name, 'y'))[:nrows]
 
         #print self.SS.shape, self.SS[:100]
             
@@ -92,6 +95,55 @@ class Sample(object):
     def standardize(self, mu, std):
         self.X = (self.X - mu) / std
 
+def calc_ptweights(feat_train,Y_train):
+    nevts = len(feat_train)
+    nbins = 100
+    ptbins = np.linspace(180.,3000.,num=nbins+1)
+    sighist = np.zeros(nbins,dtype='f8')
+    bkghist = np.zeros(nbins,dtype='f8')
+    ptis = np.zeros(nevts)
+    ptweights = np.ones(nevts,dtype='f8')
+    #print "len of feat_train, ptbins: ", nevts, len(ptbins)
+    print "feat_train and Y_train .shape: ", feat_train.shape, Y_train.shape
+    #print feat_train[:10]
+    #print "Y_train: ", Y_train[:5]
+    for x in range(nevts):
+        pti = 1
+        while (pti<nbins):
+            if (feat_train[x]>ptbins[pti-1] and feat_train[x]<ptbins[pti]): break
+            pti = pti+1
+        ptis[x] = pti
+        if (pti<nbins):
+            if (Y_train[x]==1):
+                sighist[pti] = sighist[pti]+1.
+            else:
+                bkghist[pti] = bkghist[pti]+1.
+    #print "sighist before norm: ", sighist
+    #print "bkghist before norm: ", bkghist
+    sighist = sighist/sum(sighist)
+    bkghist = bkghist/sum(bkghist)
+    #print "sighist after norm: ", sighist
+    #print "bkghist after norm: ", bkghist
+    ndivisions = 0
+    for x in range(nevts):
+        if (not (Y_train[x]==0)): continue
+        pti = int(ptis[x]) - 1
+        sig = sighist[pti]
+        bkg = bkghist[pti]
+        w = 1
+        if sig != 0 and bkg != 0:
+            w = sig/bkg             
+            ndivisions += 1
+        elif sig == 0:
+            w = 0.1
+        elif bkg == 0:
+            w = 10
+        #if ndivisions < 100: print "x, w, sig, bkg:", x, w, sig, bkg
+        ptweights[x] = w
+    #print "ndivisions: ", ndivisions
+    #print "ptweights: ", ptweights[:100]
+    return ptweights
+                                        
 class ClassModel(object):
     def __init__(self, n_inputs, h_hidden, n_targets, samples, model):
         self._hidden = 0
@@ -104,21 +156,43 @@ class ClassModel(object):
         self.tW = np.concatenate([s.W[s.tidx] for s in samples])
         self.vX = np.vstack([s.X[:][s.vidx] for s in samples])
         self.vW = np.concatenate([s.W[s.vidx] for s in samples])
-
+        
+        self.tflatY = np.concatenate([s.flatY[s.tidx] for s in samples])
+        self.vflatY = np.concatenate([s.flatY[s.vidx] for s in samples])
+        
         self.tY = np.vstack([s.Y[s.tidx] for s in samples])
         self.vY = np.vstack([s.Y[s.vidx] for s in samples])
+        
         self.tSS = np.vstack([s.SS[s.tidx] for s in samples])
         self.vSS = np.vstack([s.SS[s.vidx] for s in samples])
+
+        #print "tW before (i.e. fj_pt): ", self.tW.shape, self.tW[:10]
+        #np.save(self.name+"tW_imported", self.tW)
+        #np.save(self.name+"vW_imported", self.vW)
+        #####
         
+        if args.make_weights:
+            self.tW = calc_ptweights(self.tW, self.tflatY)
+            self.vW = calc_ptweights(self.vW, self.vflatY)
+            np.save("tW", self.tW)
+            np.save("vW", self.vW)
+        else:
+            try:
+                self.tW = np.load("tW.npy")
+                self.vW = np.load("vW.npy")
+            except:
+                print "Error loading weights from numpy files"
+        
+        #print "\ntW after: ", self.tW.shape, self.tW[600000:600100]
+
+        #'''
         for i in xrange(self.tY.shape[1]):
           tot = np.sum(self.tW[self.tY[:,i] == 1], dtype=np.int64) 
           #print "tot: ", tot
           self.tW[self.tY[:,i] == 1] *= 100.0/tot
           self.vW[self.vY[:,i] == 1] *= 100.0/tot
-
-        #print "ty: ", self.tY.shape, self.tY[:5]
-        print "tw: ", self.tW.shape, self.tW[:5]
-
+        #'''
+        
         #print "shapes of vX Y and W: ", self.vX.shape, self.vY.shape, self.vW.shape
         #print "self.tX Y and W", self.tX, "\n", self.tY, "\n", self.tW
         
@@ -166,7 +240,7 @@ class ClassModel(object):
 
 
     def train(self, samples):
-
+        #####
         history = self.model.fit(self.tX, self.tY, sample_weight=self.tW, 
                                  batch_size=10000, epochs=10, shuffle=True,
                                  validation_data=(self.vX, self.vY, self.vW))
@@ -207,6 +281,7 @@ def plot(binning, fn, samples, outpath, xlabel=None, ylabel=None):
     for s in samples:
         h = utils.NH1(binning)
         #print "fn(s): ", fn(s)
+        #####
         if type(fn) == int:
             h.fill_array(s.X[s.vidx,fn])#, weights=s.W[s.vidx])
         else:
@@ -303,6 +378,7 @@ if __name__ == '__main__':
     parser.add_argument('--version', type=int, default=0)
     parser.add_argument('--hidden', type=int, default=2)
     parser.add_argument('--pkl', action='store_true')
+    parser.add_argument('--make_weights', action='store_true')
     args = parser.parse_args()
 
     figsdir = 'plots/%s/'%(args.version)
@@ -323,6 +399,7 @@ if __name__ == '__main__':
 
     print 'Standardizing...'
     mu, std = get_mu_std(samples,modeldir)
+    #print "mu, std: ", mu, std
     [s.standardize(mu, std) for s in samples]
 
     n_hidden = 5
@@ -340,6 +417,8 @@ if __name__ == '__main__':
         if args.plot:
             for s in samples:
               s.infer(modelDNN)
+              #print "Yhat: \n", type(s.Yhat), s.Yhat.shape, '\n', s.Yhat
+              np.save(str(s.name)+"_dnn_Yhat.npy", s.Yhat['Dense'])
       
 
     if 'GRU' in models:
@@ -355,6 +434,7 @@ if __name__ == '__main__':
         if args.plot:
             for s in samples:
               s.infer(modelGRU)
+              np.save(str(s.name)+"_gru_Yhat.npy", s.Yhat['GRU'])
 
     if args.plot:
 

@@ -8,9 +8,9 @@ import sys
 # https://stackoverflow.com/questions/3160699/python-progress-bar
 progress_bar_width = 40
 # setup toolbar
-sys.stdout.write("[%s]" % (" " * progress_bar_width))
-sys.stdout.flush()
-sys.stdout.write("\b" * (progress_bar_width+1)) # return to start of line, after '['
+#sys.stdout.write("[%s]" % (" " * progress_bar_width))
+#sys.stdout.flush()
+#sys.stdout.write("\b" * (progress_bar_width+1)) # return to start of line, after '['
 
 parser = argparse.ArgumentParser()
 #might want to add an --out arg in case we want to leave the original .pkl
@@ -24,9 +24,13 @@ with open(args.json) as jsonfile:
     filenames = payload['filenames']
 
 dfs = {}
+weights = {}
+ss_vars = {}
 
 for k, v in filenames.iteritems():
-    dfs[k] = pd.read_pickle(base_dir+v+'.pkl')
+    dfs[k] = pd.read_pickle(base_dir+v+'_x.pkl')
+    weights[k] = pd.read_pickle(base_dir+v+'_w.pkl')
+    ss_vars[k] = pd.read_pickle(base_dir+v+'_ss_vars.pkl')
 
 #dPhi_metjet
 def make_dPhi_metjet():
@@ -103,21 +107,38 @@ def make_jet_charge(kappa=0, lambda_=0, p_q='fj_cpf_q', p_pt='fj_cpf_pt'):
             v.at[i, col_name] = calc_jet_charge(kappa, lambda_, p_qs.iloc[i], p_pts.iloc[i])
             
         '''
-sys.stdout.write("]\n") # this ends the progress bar
+#sys.stdout.write("]\n") # this ends the progress bar
+
+# N2*weight
+def make_N2_weighted():
+    for k, v in dfs.iteritems():
+        w = weights[k]
+        N2 = ss_vars[k]
+        #print w.head(), "\n", N2.head()
+        v['N2_times_pt_weight'] = np.multiply(w, N2)
+        print k, '\n', v.head()
+
+# weight
+def make_pt_weight():
+    for k, v in dfs.iteritems():
+        v['pt_weight'] = weights[k]
 
 def save():
     for k, v in dfs.iteritems():
-        print v.head()
-        v.to_pickle(base_dir+filenames[k]+'.pkl')
+        print k, '\n', v.head()
+        v.to_pickle(base_dir+filenames[k]+'_x.pkl')
     return
 
 #make_dPhi_metjet()
 #make_jpm_vars()
 #make_jet_charge(kappa=0, lambda_=0)
 
-kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
-for k in kappas:
-    make_jet_charge(kappa=k, lambda_=0)
+#kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
+#for k in kappas:
+#    make_jet_charge(kappa=k, lambda_=0)
+
+#make_N2_weighted()
+make_pt_weight()
     
 save()
 

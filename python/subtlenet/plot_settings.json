@@ -1,14 +1,14 @@
 {
-	"base_dir": "/uscms/home/rbisnath/nobackup/pkl_files/jet_charge/",
+	"base_dir": "/uscms/home/rbisnath/nobackup/pkl_files/jet_level/",
 	"filenames": {
-			"BGHToWW":"BGHToWW_x",
-			"BGHToZZ":"BGHToZZ_x"
+			"BGHToWW":"BGHToWW",
+			"BGHToZZ":"BGHToZZ"
 		      },
 	"displaynames": {
 			"BGHToWW": "W->cs",
 			"BGHToZZ": "Z->cc"
 			},
-	"per_part": 1,
+	"per_part": 0,
 	"combine_particles": 1,
 	"!jet_cut": "df.fj_pt > 200",
 	"jet_cut" : "df.fj_pt != None",

@@ -59,7 +59,7 @@ dfs = {}
 
 for k, v in filenames.iteritems():
     #print "dfs[k] = pd.read_pickle(base_dir+v+.pkl)", k, v
-    dfs[k] = pd.read_pickle(base_dir+v+".pkl")
+    dfs[k] = pd.read_pickle(base_dir+v+"_x.pkl")
 
 var_names = list(dfs[list(dfs)[0]])
 
@@ -101,13 +101,13 @@ def combine_particle_columns():
         dfs[k] = df
 
 if per_part:
-    pass#apply_particle_cuts()
-    #if combine_particles:
-    #    combine_particle_columns()
+    apply_particle_cuts()
+    if combine_particles:
+        combine_particle_columns()
 else:
     if jet_cut:
         for k, df in dfs.iteritems():
-            dfs[k] = df[eval(cut)]
+            pass#dfs[k] = df[eval(cut)]
 
 var_names = list(dfs[list(dfs)[0]])
 
@@ -117,7 +117,6 @@ def trim(data, p):
     #print "data.shape before trim: ", data.shape
     data = pd.Series(data=stats.trimboth(data, p))
     #print "data.shape after trim: ", data.shape
-
     return data
 
 def make_hist(var):
@@ -125,35 +124,7 @@ def make_hist(var):
     plt.figure()#(figsize=(4, 4), dpi=dpi)
     plt.xlabel(var)
     plt.title(var)
-    '''
-    min_ = min([v[var].min() for v in dfs.itervalues()])
-    max_ = max([v[var].max() for v in dfs.itervalues()])
-
-    print var, "min: {}, max: {}".format(min_, max_)
-
-    if min_ == max_:
-        if np.abs(min_) < 0.0001:
-            delta = 1
-        else:
-            delta = 0.25 * min_
-        min_ -= delta
-        max_ += delta
-
-    plt.xlim(min_, max_)
-    bins = np.linspace(min_, max_, 100)
-    #print min_, max_, '\n', bins
-    '''
-
-    '''
-    for k, v in dfs.iteritems():
-        #print "in make_hist, k:", k
-        if args.maxz:
-            trimmed_data = v[var][(np.abs(stats.zscore(v[var])) < max_zscore)]
-            trimmed_data.plot.hist(bins, label=displaynames[k], histtype='step', density=True)
-        else:
-            v[var].plot.hist(bins, label=displaynames[k], histtype='step', density=True)
-    '''
-
+    
     for k, v in dfs.iteritems():
         data = v[var]
 
@@ -205,16 +176,24 @@ def make_hists(vars_to_plot):
             problems[var] = str(e)
     return problems
 
+# all vars
 #print "var_names: ", var_names
 #make_hists(var_names)
+
+# jet charge
 #make_hist('jet_charge_k0_l0')
-j_c_vars = [v for v in var_names if 'jet_charge' in v]
-make_hists(j_c_vars)
+#j_c_vars = [v for v in var_names if 'jet_charge' in v]
+#make_hists(j_c_vars)
 
-#make_plot('fj_cpf_pfType[0]', 'fj_cpf_dz[0]')
-
+# kinematics
 #kinematics = ['fj_cpf_pt', 'fj_cpf_eta', 'fj_cpf_phi', 'fj_cpf_dz', 'fj_cpf_pup', 'fj_cpf_q']
-#old_kinematics = ['fj_cpf_pt[0]', 'fj_cpf_eta[0]', 'fj_cpf_phi[0]', 'fj_cpf_dz[0]', 'fj_cpf_pup[0]', 'fj_cpf_q[0]']
 #make_hists(kinematics)
+
+# misc
+#make_hist("N2_times_pt_weight")
+#make_hist("pt_weight")
+
+#make_hists([v for v in var_names if "cpf" in v])
+make_hist("fj_pt")
 
 out.close()

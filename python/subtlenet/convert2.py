@@ -61,6 +61,8 @@ except NameError:
 files = [uproot.open(f) for f in filenames]
 trees = [f['Events'] for f in files]
 keys = trees[0].keys()
+nevents = 0
+#nevents_after_cut = 0
 #uncomment the line below to see what keys will be accepted for features/defualts in the json
 if VERBOSITY == 3:
     print '\n Keys: \n', keys, type(keys)
@@ -120,6 +122,8 @@ def get_branches_as_df(branches, mode):
     if mode=='features' and cut: 
         #the first call to this function must have mode=features for everything to work
         if VERBOSITY != 0: print "cut:", cut
+        global nevents
+        nevents = df.shape[0]
         if VERBOSITY == 2: print "df.shape before cut: ", df.shape
         df = df[eval(cut)].dropna()
         if VERBOSITY == 2: print "df.shape after cut: ", df.shape
@@ -158,9 +162,38 @@ if VERBOSITY == 2:
     print "dtypes: ", X.dtypes
 W = get_branches_as_df([weight], 'weight')
 y = 0 if args.background else 1
-Y = pd.DataFrame(data=y*np.ones(shape=W.shape))
+print "nevents: ", nevents
+Y = pd.DataFrame(data=y*np.ones(shape=(nevents, 1)))
 substructure = get_branches_as_df(substructure_vars, 'substructure')
 decayType = get_branches_as_df(['fj_decayType'], 'decayType')
+
+def calc_ptweights(feat_train,Y_train):
+    nbins=20
+    ptbins = np.linspace(400.,1000.,num=nbins+1)
+    sighist = np.zeros(nbins,dtype='f8')
+    bkghist = np.zeros(nbins,dtype='f8')
+    ptweights = np.ones(nevents_after_cut,dtype='f8')
+    print "len of feat_train, ptbins: ", len(feat_train), len(ptbins)
+    for x in range(nevents_after_cut):
+        pti = 1
+        while (pti<nbins):
+            if (feat_train[x]>ptbins[pti-1] and feat_train[x]<ptbins[pti]): break
+            pti = pti+1
+        if (pti<nbins):
+            if (Y_train[x]==1):
+                sighist[pti] = sighist[pti]+1.
+            else:
+                bkghist[pti] = bkghist[pti]+1.
+    #sighist = sighist/sum(sighist)
+    #bkghist = bkghist/sum(bkghist)
+    for x in range(nevents_after_cut):
+        if (not Y_train[x]==0): continue
+        pti = 1
+        while (pti<nbins):
+            if (feat_train[x]>ptbins[pti-1] and feat_train[x]<ptbins[pti]): break
+            pti = pti+1
+        if (pti<nbins and bkghist[pti]>0.): ptweights[x] = sighist[pti]/bkghist[pti]
+    return ptweights
 
 # writing to .pkl files
 def save(df, label):
@@ -177,7 +210,8 @@ def save(df, label):
 if not args.dry:
     save(X, 'x')
     save(Y, 'y')
-    save(W, 'w')
+    #save(W, 'w')
+    save(W, 'j_pt')
     save(substructure, 'ss_vars')
     save(decayType, 'decayType')
 
