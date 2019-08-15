@@ -33,6 +33,7 @@ with open(args.json) as jsonfile:
     payload = json.load(jsonfile)
     basedir = payload['base']
     features = payload['features']
+    j_pt = payload['j_pt']
     weight = payload['weight']
     cut_vars = payload['cut_vars']
     #cut = payload['cut']
@@ -165,7 +166,8 @@ y = 0 if args.background else 1
 print "nevents: ", nevents
 Y = pd.DataFrame(data=y*np.ones(shape=(nevents, 1)))
 substructure = get_branches_as_df(substructure_vars, 'substructure')
-decayType = get_branches_as_df(['fj_decayType'], 'decayType')
+decay_type = get_branches_as_df(['fj_decayType'], 'decay_type')
+j_pt = get_branches_as_df([j_pt], 'j_pt')
 
 def calc_ptweights(feat_train,Y_train):
     nbins=20
@@ -210,8 +212,8 @@ def save(df, label):
 if not args.dry:
     save(X, 'x')
     save(Y, 'y')
-    #save(W, 'w')
-    save(W, 'j_pt')
+    save(W, 'w')
+    save(j_pt, 'j_pt')
     save(substructure, 'ss_vars')
-    save(decayType, 'decayType')
+    save(decay_type, 'decay_type')
 

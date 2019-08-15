@@ -36,24 +36,36 @@ N2 = {
 }
 
 Y = {
-    "WW": "BGHToWW_Y_all.npy",
-    "ZZ": "BGHToZZ_Y_all.npy"
+    "WW": "BGHToWW_Y_",
+    "ZZ": "BGHToZZ_Y_"
 }
 
 GRU = {
-    "WW": "BGHToWW_gru_Yhat_all.npy",
-    "ZZ": "BGHToZZ_gru_Yhat_all.npy"
+    "WW": "BGHToWW_gru_Yhat_",
+    "ZZ": "BGHToZZ_gru_Yhat_"
 }
 
 DNN = {
-    "WW": "BGHToWW_dnn_Yhat_all.npy",
-    "ZZ": "BGHToZZ_dnn_Yhat_all.npy"
+    "WW": "BGHToWW_dnn_Yhat_",
+    "ZZ": "BGHToZZ_dnn_Yhat_"
 }
 
 weights = {
     "WW": np.load("dazsle_weights_sig.npy"),
     "ZZ": np.load("dazsle_weights_bkg.npy")
-}        
+}
+
+flavors = ["all", "cs", "ud", "b"]
+
+def complete_filenames(filenames, flavor):
+    complete = {}
+    for k, v in filenames.iteritems():
+        if v[-1] == '_':
+            complete[k] = v+flavor+".npy"
+        else:
+            complete[k] = v+"_"+flavor+".npy"
+    return complete
+        
 
 out = PdfPages("out.pdf")
 
@@ -104,10 +116,11 @@ def make_hist(filenames, weight=False, title="", xlabel=""):
 # roc curve
 from sklearn.metrics import roc_curve
 
-ys = [np.load(inf_dir+name+"_Y_all.npy") for name in samples]
-y = np.concatenate(ys)
-dnn_yhat = np.concatenate([v for v in make_arrays(DNN).itervalues()])
-gru_yhat = np.concatenate([v for v in make_arrays(GRU).itervalues()])
+#ys = [np.load(inf_dir+name+"_Y_all.npy") for name in samples]
+y = np.concatenate([v for v in make_arrays(complete_filenames(Y, 'all')).itervalues()])
+print complete_filenames(DNN, 'all')
+dnn_yhat = np.concatenate([v for v in make_arrays(complete_filenames(DNN, 'all')).itervalues()])
+gru_yhat = np.concatenate([v for v in make_arrays(complete_filenames(GRU, 'all')).itervalues()])
 
 def make_roc():
 
@@ -132,8 +145,8 @@ def make_roc():
 
 
 make_hist(N2, weight=True, title="N2", xlabel="N2")
-make_hist(DNN, weight=True, title="DNN", xlabel="Response")
-make_hist(GRU, weight=True, title="GRU", xlabel="Response")
+make_hist(complete_filenames(DNN, 'all'), weight=True, title="DNN", xlabel="Response")
+make_hist(complete_filenames(GRU, 'all'), weight=True, title="GRU", xlabel="Response")
 make_roc()
 
 out.close()

@@ -24,12 +24,30 @@ MULTICLASS = False
 REGRESSION = False
 np.random.seed(5)
 
-basedir = '/home/rbisnath/pkl_files/jet_level'
+basedir = '/uscms/home/rbisnath/nobackup/pkl_files/jet_level_all_decays/'
+#'/home/rbisnath/pkl_files/jet_level'
 Nqcd = 1200000
 Nsig = 1200000
 
 def _make_parent(path):
     os.system('mkdir -p %s'%('/'.join(path.split('/')[:-1])))
+
+decay_key = { #1:u/d, 2:c/s, 3:b, 4:tautau, 5:gluglu, 6:ZZ, 7:WW
+    "ud": 1,
+    "cs": 2,
+    "b": 3,
+    "tautau": 4,
+    "gluglu": 5,
+    "ZZ": 6,
+    "WW": 7
+}
+
+def get_flavor_inds(decays, decay_key):
+    flavor_inds = {}
+    for k, v in decay_key.iteritems():
+        inds = np.where(decays == v)[0]
+        if len(inds) != 0: flavor_inds[k] = inds
+    return flavor_inds
 
 class Sample(object):
     def __init__(self, name, base, max_Y):
@@ -42,15 +60,15 @@ class Sample(object):
         if args.pkl:
             self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x')).values[:nrows]
             self.SS = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'ss_vars')).values[:nrows]
-            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] ##### switch w to j_pt if using --make_weights
+            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] ##### switch 'w' to 'j_pt' if using --make_weights
             self.flatY = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'y')).values.flatten()[:nrows]
+            self.decay_type = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'decay_type')).values.flatten()[:nrows]
         else:
             self.X = np.load('%s/%s_%s.npy'%(base, name, 'x'))[:nrows]
             self.SS = np.load('%s/%s_%s.npy'%(base, name, 'ss_vars'))[:nrows]
             self.W = np.load('%s/%s_%s.npy'%(base, name, 'w'))[:nrows]
             self.flatY = np.load('%s/%s_%s.npy'%(base, name, 'y'))[:nrows]
-
-        #print self.SS.shape, self.SS[:100]
+            self.decay_type = np.load('%s/%s_%s.npy'%(base, name, 'decay_type'))[:nrows]
             
         if MULTICLASS:
             if args.pkl:
@@ -76,6 +94,15 @@ class Sample(object):
                         )
  
         self.idx = np.random.permutation(self.Y.shape[0])
+        self.flavor_inds = get_flavor_inds(self.decay_type, decay_key)
+        print self.name, "self.flavor_inds: ", self.flavor_inds
+
+        #print "s.decay_type: ", self.decay_type.shape, self.decay_type[:5]
+        #print "s.Y: ", self.Y.shape, self.Y[:5]
+
+        if args.save_ss:
+            np.save(self.name+"_ss.npy", self.SS)
+
     @property
     def tidx(self):
         if VALSPLIT == 1 or VALSPLIT == 0:
@@ -94,6 +121,22 @@ class Sample(object):
         self.Yhat[model.name] = model.predict(self.X)
     def standardize(self, mu, std):
         self.X = (self.X - mu) / std
+    def save_inference(self, model_name='Dense', path='', flavor_split=False):
+        if flavor_split:
+            inds = self.flavor_inds
+            for k, v in inds.iteritems():
+                np.save(path+str(self.name)+"_Y_"+k+".npy", self.Y[v])
+                if 'Dense' in model_name:
+                    np.save(path+str(self.name)+"_dnn_Yhat_"+k+".npy", self.Yhat['Dense'][v])
+                elif 'GRU' in model_name:
+                    np.save(path+str(self.name)+"_gru_Yhat_"+k+".npy", self.Yhat['GRU'][v])
+        else:
+            np.save(path+str(self.name)+"_Y_all.npy", self.Y)
+            if 'Dense' in model_name:
+                np.save(path+str(self.name)+"_dnn_Yhat_all.npy", self.Yhat['Dense'])
+            elif 'GRU' in model_name:
+                np.save(path+str(self.name)+"_gru_Yhat_all.npy", self.Yhat['GRU'])
+        
 
 def calc_ptweights(feat_train,Y_train):
     nevts = len(feat_train)
@@ -164,9 +207,9 @@ class ClassModel(object):
         self.vSS = np.vstack([s.SS[s.vidx] for s in samples])
 
         #print "tW before (i.e. fj_pt): ", self.tW.shape, self.tW[:10]
-        ##### uncomment below if using --make_weights
+        ##### uncomment below if using --make_weights / comment out if using imported weights
         
-        if args.make_weights:
+        if args.make_weights and 'Dense' in self.name:
             self.tW = calc_ptweights(self.tW, self.tflatY)
             self.vW = calc_ptweights(self.vW, self.vflatY)
             np.save("tW", self.tW)
@@ -178,14 +221,18 @@ class ClassModel(object):
             except:
                 print "Error loading weights from numpy files"
 
-        # Want to grab the bkg weights
-        '''
-        ordered_pts = np.concatenate([s.W for s in samples])
-        ordered_ys = np.concatenate([s.flatY for s in samples])
-        ordered_weights = calc_ptweights(ordered_pts, ordered_ys)
-        np.save("dazsle_weights_ordered.npy", ordered_weights)
-        print "ding"
-        '''
+        if args.make_weights and 'Dense' in self.name:
+            ordered_pts = np.concatenate([s.W for s in samples])
+            ordered_ys = np.concatenate([s.flatY for s in samples])
+            ordered_weights = calc_ptweights(ordered_pts, ordered_ys)
+            #np.save("dazsle_weights_ordered.npy", ordered_weights)
+            i = len(samples[0].X)
+            sig_weights = ordered_weights[:i]
+            bkg_weights = ordered_weights[i:]
+            np.save("dazsle_weights_sig.npy", sig_weights)
+            np.save("dazsle_weights_bkg.npy", bkg_weights)
+            print "finished saving weights"
+        
         
         #print "\ntW after: ", self.tW.shape, self.tW[:100]
  
@@ -382,12 +429,17 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', type=int, default=2)
     parser.add_argument('--pkl', action='store_true')
     parser.add_argument('--make_weights', action='store_true')
+    parser.add_argument('--save_ss', action='store_true')
     args = parser.parse_args()
 
     figsdir = 'plots/%s/'%(args.version)
     modeldir = 'models/evt/v%i/'%(args.version)
+    inferencedir = 'inference/'
+    flavordir = inferencedir+'flavor_split/'
 
     _make_parent(modeldir)
+    _make_parent(inferencedir)
+    _make_parent(flavordir)
     SIG = 'BGHToWW'
     BKG = 'BGHToZZ'
 
@@ -421,8 +473,10 @@ if __name__ == '__main__':
             for s in samples:
               s.infer(modelDNN)
               #print "Yhat: \n", type(s.Yhat), s.Yhat.shape, '\n', s.Yhat
-              np.save(str(s.name)+"_dnn_Yhat.npy", s.Yhat['Dense'])
-              np.save(str(s.name)+"_Y.npy", s.Y)
+              #np.save(str(s.name)+"_dnn_Yhat.npy", s.Yhat['Dense'])
+              #np.save(str(s.name)+"_Y.npy", s.Y)
+              s.save_inference(model_name="Dense", path=inferencedir)
+              s.save_inference(model_name="Dense", path=flavordir, flavor_split=True)
       
 
     if 'GRU' in models:
@@ -438,7 +492,9 @@ if __name__ == '__main__':
         if args.plot:
             for s in samples:
               s.infer(modelGRU)
-              np.save(str(s.name)+"_gru_Yhat.npy", s.Yhat['GRU'])
+              #np.save(str(s.name)+"_gru_Yhat.npy", s.Yhat['GRU'])
+              s.save_inference(model_name="GRU", path=inferencedir)
+              s.save_inference(model_name="GRU", path=flavordir, flavor_split=True)
 
     if args.plot:
 
