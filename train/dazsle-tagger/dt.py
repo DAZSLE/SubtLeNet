@@ -33,7 +33,8 @@ def _make_parent(path):
 
 class Sample(object):
     def __init__(self, name, base, max_Y):
-        self.name = name 
+        self.name = name
+        print self.name
 
         nrows = Nqcd if 'QCD' in name else Nsig
         
@@ -102,12 +103,9 @@ def calc_ptweights(feat_train,Y_train):
     bkghist = np.zeros(nbins,dtype='f8')
     ptis = np.zeros(nevts)
     ptweights = np.ones(nevts,dtype='f8')
-    #print "len of feat_train, ptbins: ", nevts, len(ptbins)
-    print "feat_train and Y_train .shape: ", feat_train.shape, Y_train.shape
-    #print feat_train[:10]
-    #print "Y_train: ", Y_train[:5]
+    print "in calc_ptweights, feat_train and Y_train .shape: ", feat_train.shape, Y_train.shape
     for x in range(nevts):
-        pti = 1
+        pti = 0
         while (pti<nbins):
             if (feat_train[x]>ptbins[pti-1] and feat_train[x]<ptbins[pti]): break
             pti = pti+1
@@ -180,28 +178,17 @@ class ClassModel(object):
             except:
                 print "Error loading weights from numpy files"
 
-        #print "\ntW after: ", self.tW.shape, self.tW[600000:600100]
-                
-        #separating the weights into signal/bkg and saving
-        if 'Dense' in self.name and args.make_weights:
-            signal_weights = []
-            bkg_weights = []
+        # Want to grab the bkg weights
+        '''
+        ordered_pts = np.concatenate([s.W for s in samples])
+        ordered_ys = np.concatenate([s.flatY for s in samples])
+        ordered_weights = calc_ptweights(ordered_pts, ordered_ys)
+        np.save("dazsle_weights_ordered.npy", ordered_weights)
+        print "ding"
+        '''
         
-            for x in range(len(self.tW)):
-                if self.tflatY[x] == 1:
-                    signal_weights.append(self.tW[x])
-                else:
-                    bkg_weights.append(self.tW[x])
-                    
-            for x in range(len(self.vW)):
-                if self.vflatY[x] == 1:
-                    signal_weights.append(self.vW[x])
-                else:
-                    bkg_weights.append(self.vW[x])
-
-            np.save("dazsle_weights_signal.npy", signal_weights)
-            np.save("dazsle_weights_bkg.npy", bkg_weights)
-                
+        #print "\ntW after: ", self.tW.shape, self.tW[:100]
+ 
         #normalizing the weights
         for i in xrange(self.tY.shape[1]):
             tot = np.sum(self.tW[self.tY[:,i] == 1], dtype=np.int64) 
@@ -257,9 +244,9 @@ class ClassModel(object):
 
     def train(self, samples):
         #####
-        history = self.model.fit(self.tX, self.tY, #sample_weight=self.tW, 
+        history = self.model.fit(self.tX, self.tY, sample_weight=self.tW, 
                                  batch_size=10000, epochs=10, shuffle=True,
-                                 validation_data=(self.vX, self.vY))#, self.vW))
+                                 validation_data=(self.vX, self.vY, self.vW))
 
         with open('history.log','w') as flog:
             history = history.history
@@ -435,6 +422,7 @@ if __name__ == '__main__':
               s.infer(modelDNN)
               #print "Yhat: \n", type(s.Yhat), s.Yhat.shape, '\n', s.Yhat
               np.save(str(s.name)+"_dnn_Yhat.npy", s.Yhat['Dense'])
+              np.save(str(s.name)+"_Y.npy", s.Y)
       
 
     if 'GRU' in models:
