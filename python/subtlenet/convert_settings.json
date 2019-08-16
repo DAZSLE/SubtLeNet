@@ -23,6 +23,7 @@
     "!features": ["fj_cpf_vtxID", "fj_cpf_eta", "fj_cpf_phi", "fj_cpf_pt"],
     "!features": ["fj_cpf_eta", "fj_cpf_phi", "fj_cpf_pt", "fj_cpf_vtxID", "fj_sv_pt", "fj_sv_deltaR", "fj_sv_ntracks", "fj_sv_chi2", "fj_sv_dxy", "fj_sv_dxysig", "fj_sv_d3d", "fj_sv_d3dsig", "fj_sv_enratio"],
     "j_pt": "fj_pt",
+    "j_msd": "fj_msd",
     "weight": "sf_ptWeightthree",
     "cut_vars": ["fj_pt", "fj_msd", "fj_resonanceType", "fj_decayType"],
     "!signal_cut": "(df.fj_msd > 0) & (df.fj_pt > 400) & (df.fj_resonanceType == 2) & (df.fj_decayType == 2)",

@@ -34,6 +34,7 @@ with open(args.json) as jsonfile:
     basedir = payload['base']
     features = payload['features']
     j_pt = payload['j_pt']
+    j_msd = payload['j_msd']
     weight = payload['weight']
     cut_vars = payload['cut_vars']
     #cut = payload['cut']
@@ -145,6 +146,7 @@ def is_extra(s):
     if m:
         return int(m.group(0)) >= nparticles
     return True
+
 '''
 if per_part:
     extra_columns = list(filter(is_extra, list(X.columns)))
@@ -156,6 +158,7 @@ if per_part:
 else:
     X = X.drop(in_cut_vars_only, axis=1)
 '''
+
 X = X.drop(in_cut_vars_only, axis=1)
 
 if VERBOSITY == 2:
@@ -168,7 +171,31 @@ Y = pd.DataFrame(data=y*np.ones(shape=(nevents, 1)))
 substructure = get_branches_as_df(substructure_vars, 'substructure')
 decay_type = get_branches_as_df(['fj_decayType'], 'decay_type')
 j_pt = get_branches_as_df([j_pt], 'j_pt')
+j_msd = get_branches_as_df([j_msd], 'j_msd')
 
+# writing to .pkl files
+def save(df, label):
+    fout = args.out+'/'+args.name+'_'+label+'.pkl'
+    if label != 'x':
+        df = df.iloc[good_indicies]
+    df = df.reset_index(drop=True)
+    df.to_pickle(fout)
+    if VERBOSITY == 1 or VERBOSITY == 2:
+        print '\n'+label+'\n', df.shape, '\n'
+        print df.head()
+        print "n nan: ", df.isnull().sum().sum()
+
+if not args.dry:
+    save(X, 'x')
+    save(Y, 'y')
+    save(W, 'w')
+    save(j_pt, 'j_pt')
+    save(j_msd, 'j_msd')
+    save(substructure, 'ss_vars')
+    save(decay_type, 'decay_type')
+
+
+'''
 def calc_ptweights(feat_train,Y_train):
     nbins=20
     ptbins = np.linspace(400.,1000.,num=nbins+1)
@@ -196,24 +223,4 @@ def calc_ptweights(feat_train,Y_train):
             pti = pti+1
         if (pti<nbins and bkghist[pti]>0.): ptweights[x] = sighist[pti]/bkghist[pti]
     return ptweights
-
-# writing to .pkl files
-def save(df, label):
-    fout = args.out+'/'+args.name+'_'+label+'.pkl'
-    if label != 'x':
-        df = df.iloc[good_indicies]
-    df = df.reset_index(drop=True)
-    df.to_pickle(fout)
-    if VERBOSITY == 1 or VERBOSITY == 2:
-        print '\n'+label+'\n', df.shape, '\n'
-        print df.head()
-        print "n nan: ", df.isnull().sum().sum()
-
-if not args.dry:
-    save(X, 'x')
-    save(Y, 'y')
-    save(W, 'w')
-    save(j_pt, 'j_pt')
-    save(substructure, 'ss_vars')
-    save(decay_type, 'decay_type')
-
+'''

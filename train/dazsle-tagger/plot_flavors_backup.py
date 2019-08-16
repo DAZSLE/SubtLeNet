@@ -74,10 +74,11 @@ def make_hist(var, weight=False, title="", xlabel=""):
 
     for k, v in arrays.iteritems():
         #print "working on:", k
-        #print "v shape min and max: ", v.shape, '\n', v.min(), '\n', v.max()
+        #print "v shape min and max: ", v.shape, v.min(), v.max()
         if weight:
-            #print "using weights: ", weights[k], len(weights[k])
-            plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=np.load(filenames[k]['weights']))
+            weights = np.load(filenames[k]['weights'])
+            #print "using weights: ", filenames[k]['weights'], len(weights)
+            plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=weights[:v.shape[0]])
         else:
             plt.hist(v, bins=bins, density=True, label=k, histtype='step')
 
@@ -90,6 +91,40 @@ def make_hist(var, weight=False, title="", xlabel=""):
     
     plt.legend(loc='upper right')
     
+    PdfPages.savefig(out, dpi=100)
+    return
+
+def make_flavor_hists(var, flavors=[""], weight=False, title="", xlabel=""):
+    plt.figure(figsize=(6, 6), dpi=100)
+    plt.title(title)
+    plt.xlabel(xlabel)
+
+    for f in flavors:
+        if f != "":
+            f = "_"+f
+        try:
+            arrays = make_arrays(var+f)
+        except IOError:
+            continue
+        except Exception as e:
+            print "make_flavor_hists exception:", e
+            continue
+
+        min_ = min([min(v) for v in arrays.itervalues()])
+        max_ = max([max(v) for v in arrays.itervalues()])
+        bins = np.linspace(min_, max_, 100)
+
+        for k, v in arrays.iteritems():
+            #print "working on:", k
+            #print "v shape min and max: ", v.shape, v.min(), v.max()
+            if weight:
+                weights = np.load(filenames[k]['weights'])
+                #print "using weights: ", filenames[k]['weights'], len(weights)
+                plt.hist(v, bins=bins, density=True, label=k+f, histtype='step', weights=weights[:v.shape[0]])
+            else:
+                plt.hist(v, bins=bins, density=True, label=k+f, histtype='step')
+    
+    plt.legend(loc='upper right')
     PdfPages.savefig(out, dpi=100)
     return
 
@@ -108,9 +143,14 @@ def make_roc(flavors=[""]):
     for f in flavors:
         if f != "":
             f = "_"+f
-        y = np.concatenate([v for v in make_arrays("Y"+f).itervalues()])
-        dnn_yhat = np.concatenate([v for v in make_arrays("DNN"+f).itervalues()])
-        gru_yhat = np.concatenate([v for v in make_arrays("GRU"+f).itervalues()])
+        try:
+            y = np.concatenate([v for v in make_arrays("Y"+f).itervalues()])
+            dnn_yhat = np.concatenate([v for v in make_arrays("DNN"+f).itervalues()])
+            gru_yhat = np.concatenate([v for v in make_arrays("GRU"+f).itervalues()])
+        except IOError:
+            continue
+        except Exception as e:
+            print e
 
         fpr_dnn, tpr_dnn, _ = roc_curve(1 - y, dnn_yhat[:, :1])
         fpr_gru, tpr_gru, _ = roc_curve(1 - y, gru_yhat[:, :1])
@@ -126,9 +166,15 @@ def make_roc(flavors=[""]):
 
 
 make_hist("N2", weight=True, title="N2", xlabel="N2")
+
 make_hist("DNN", weight=True, title="DNN", xlabel="Response")
 make_hist("GRU", weight=True, title="GRU", xlabel="Response")
+
+make_flavor_hists("DNN", flavors=flavors, weight=True, title="DNN", xlabel="Response")
+make_flavor_hists("GRU", flavors=flavors, weight=True, title="GRU", xlabel="Response")
+
 make_roc()
+make_roc(flavors=flavors)
 
 out.close()
 
