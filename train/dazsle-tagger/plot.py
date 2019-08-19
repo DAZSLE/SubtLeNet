@@ -40,7 +40,7 @@ flavors = ['cs', 'ud', 'b']
 flavor_labels = {
     '': '',
     'cs': 'cc/ss',
-    'ud': 'uu/dd',
+    'ud': 'light',
     'b': 'bb'
 }
 
@@ -124,8 +124,10 @@ def make_flavor_hists(var, flavors=[""], weight=False, title="", xlabel=""):
             if v is None: continue
             #print "working on:", k
             #print "v shape min and max: ", v.shape, v.min(), v.max()
+            v = v[np.logical_not(np.isnan(v))]
             if weight:
                 weights = np.load(filenames[k]['weights'])
+                weights = weights[np.logical_not(np.isnan(weights))]
                 #print "using weights: ", filenames[k]['weights'], len(weights)
                 plt.hist(v, bins=bins, density=True, label=k+"->"+flavor_labels[orig_f], histtype='step', weights=weights[:v.shape[0]])
             else:
@@ -173,7 +175,7 @@ def make_roc(flavors=[""]):
     return
 
 
-make_hist("N2", weight=True, title="N2", xlabel="N2")
+#make_hist("N2", weight=True, title="N2", xlabel="N2")
 
 make_hist("DNN", weight=True, title="DNN", xlabel="Response")
 make_hist("GRU", weight=True, title="GRU", xlabel="Response")

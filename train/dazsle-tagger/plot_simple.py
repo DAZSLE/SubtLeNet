@@ -28,6 +28,7 @@ filenames = {
 inf_dir = "inference/"
 
 samples = ["BGHToWW", "BGHToZZ"]
+nevts = 1200000
 
 # files to use for N2, GRU, etc
 N2 = {
@@ -50,10 +51,22 @@ DNN = {
     "ZZ": "BGHToZZ_dnn_Yhat_all.npy"
 }
 
+j_pt = {
+    "WW": "WW_j_pt.npy",
+    "ZZ": "ZZ_j_pt.npy"
+}
+
+j_msd = {
+    "WW": "WW_j_msd.npy",
+    "ZZ": "ZZ_j_msd.npy"
+}
+
 weights = {
     "WW": np.load("dazsle_weights_sig.npy"),
     "ZZ": np.load("dazsle_weights_bkg.npy")
 }        
+
+
 
 out = PdfPages("out.pdf")
 
@@ -70,24 +83,25 @@ def make_arrays(filenames):
 
     return arrays
 
-def make_hist(filenames, weight=False, title="", xlabel=""):
+def make_hist(filenames, weight=False, title="", xlabel="", min_=None, max_=None):
     plt.figure(figsize=(6, 6), dpi=100)
     plt.title(title)
     plt.xlabel(xlabel)
 
     arrays = make_arrays(filenames)
-    min_ = min([min(v) for v in arrays.itervalues()])
-    max_ = max([max(v) for v in arrays.itervalues()])
+    if min_ is None: min_ = min([min(v) for v in arrays.itervalues()])
+    if max_ is None: max_ = max([max(v) for v in arrays.itervalues()])
     bins = np.linspace(min_, max_, 100)
 
     for k, v in arrays.iteritems():
-        #print "working on:", k
-        #print "v shape min and max: ", v.shape, '\n', v.min(), '\n', v.max()
+        print k
+        print "v shape min and max: ", v.shape, '\n', v.min(), '\n', v.max()
         if weight:
-            #print "using weights: ", weights[k], len(weights[k])
-            plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=weights[k])
+            w = weights[k][:v.shape[0]]
+            print "using weights: ", w, len(w)
+            plt.hist(v[:nevts], bins=bins, density=True, label=k, histtype='step', weights=w)
         else:
-            plt.hist(v, bins=bins, density=True, label=k, histtype='step')
+            plt.hist(v[:nevts], bins=bins, density=True, label=k, histtype='step')
 
     
     ''' # plot weighted vs unweighted
@@ -95,6 +109,30 @@ def make_hist(filenames, weight=False, title="", xlabel=""):
         plt.hist(v, bins=bins, density=True, label='weighted', histtype='step', weights=weights[k])
         plt.hist(v, bins=bins, density=True, label='unweighted', histtype='step')
     '''
+    
+    plt.legend(loc='upper right')
+    
+    PdfPages.savefig(out, dpi=100)
+    return
+
+def make_hist_from_arrays(arrays, weight=False, title="", xlabel="", min_=None, max_=None):
+    plt.figure(figsize=(6, 6), dpi=100)
+    plt.title(title)
+    plt.xlabel(xlabel)
+
+    if min_ is None: min_ = min([min(v) for v in arrays.itervalues()])
+    if max_ is None: max_ = max([max(v) for v in arrays.itervalues()])
+    bins = np.linspace(min_, max_, 100)
+
+    for k, v in arrays.iteritems():
+        #print k
+        #print "v shape min and max: ", v.shape, '\n', v.min(), '\n', v.max()
+        if weight:
+            w = weights[k][:v.shape[0]]
+            #print "using weights: ", w, len(w)
+            plt.hist(v, bins=bins, density=True, label="Response > {}".format(k), histtype='step', weights=w)
+        else:
+            plt.hist(v, bins=bins, density=True, label="Response > {}".format(k), histtype='step')
     
     plt.legend(loc='upper right')
     
@@ -130,11 +168,37 @@ def make_roc():
     
     return
 
+def make_msd_arrays(yhats, k, min_=0, max_=.8, n=5):
+    yhat = yhats[k][:,0]
+    msd = make_arrays(j_msd)[k]
+    msds = {}
+    for i in np.linspace(min_, max_, n):
+        mask = np.where(yhat > i)[0]
+        msds[i] = msd[mask]
+    return msds
 
-make_hist(N2, weight=True, title="N2", xlabel="N2")
-make_hist(DNN, weight=True, title="DNN", xlabel="Response")
-make_hist(GRU, weight=True, title="GRU", xlabel="Response")
-make_roc()
+#make_hist(N2, weight=True, title="N2", xlabel="N2")
+#make_hist(DNN, weight=True, title="DNN", xlabel="Response")
+#make_hist(GRU, weight=True, title="GRU", xlabel="Response")
+#make_roc()
+
+def make_report():
+    make_hist(j_pt, weight=False, title="j_pt (unweighted)", xlabel="j_pt")
+    make_hist(j_pt, weight=True, title="j_pt (weighted)", xlabel="j_pt")
+    make_hist(j_msd, weight=False, title="j_msd (unweighted)", xlabel="j_msd", min_=0, max_=200)
+    make_hist(j_msd, weight=True, title="j_msd (weighted)", xlabel="j_msd", min_=0, max_=200)
+
+    WW_DNN_j_msds = make_msd_arrays(make_arrays(DNN), "WW")
+    WW_GRU_j_msds = make_msd_arrays(make_arrays(GRU), "WW")
+    ZZ_DNN_j_msds = make_msd_arrays(make_arrays(DNN), "ZZ")
+    ZZ_GRU_j_msds = make_msd_arrays(make_arrays(GRU), "ZZ")
+
+    make_hist_from_arrays(WW_DNN_j_msds, weight=False, title="WW j_msd filtered by DNN Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
+    make_hist_from_arrays(WW_GRU_j_msds, weight=False, title="WW j_msd filtered by GRU Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
+    make_hist_from_arrays(ZZ_DNN_j_msds, weight=False, title="ZZ j_msd filtered by DNN Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
+    make_hist_from_arrays(ZZ_GRU_j_msds, weight=False, title="ZZ j_msd filtered by GRU Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
+
+make_report()
 
 out.close()
 

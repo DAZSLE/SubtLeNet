@@ -24,7 +24,7 @@ MULTICLASS = False
 REGRESSION = False
 np.random.seed(5)
 
-basedir = '/uscms/home/rbisnath/nobackup/pkl_files/jet_level_all_decays/'
+basedir = '/uscms/home/rbisnath/nobackup/pkl_files/particle_level_fewer'
 #'/home/rbisnath/pkl_files/jet_level'
 Nqcd = 1200000
 Nsig = 1200000
@@ -33,6 +33,7 @@ def _make_parent(path):
     os.system('mkdir -p %s'%('/'.join(path.split('/')[:-1])))
 
 decay_key = { #1:u/d, 2:c/s, 3:b, 4:tautau, 5:gluglu, 6:ZZ, 7:WW
+    "QCD": 0,
     "ud": 1,
     "cs": 2,
     "b": 3,

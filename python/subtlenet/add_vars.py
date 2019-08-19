@@ -131,14 +131,14 @@ def save():
 
 #make_dPhi_metjet()
 #make_jpm_vars()
-#make_jet_charge(kappa=0, lambda_=0)
+#make_jet_charge(kappa=0.5, lambda_=0)
 
-#kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
-#for k in kappas:
-#    make_jet_charge(kappa=k, lambda_=0)
+kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
+for k in kappas:
+    make_jet_charge(kappa=k, lambda_=0)
 
 #make_N2_weighted()
-make_pt_weight()
+#make_pt_weight()
     
 save()
 
