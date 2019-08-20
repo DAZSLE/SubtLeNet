@@ -133,7 +133,8 @@ def save():
 #make_jpm_vars()
 #make_jet_charge(kappa=0.5, lambda_=0)
 
-kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
+#kappas = [0, 0.1, 0.2, 0.5, 0.7, 1]
+kappas = [0, 0.5, 0.7]
 for k in kappas:
     make_jet_charge(kappa=k, lambda_=0)
 
