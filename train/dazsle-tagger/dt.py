@@ -7,7 +7,7 @@ from keras.models import Model, load_model
 from keras.callbacks import ModelCheckpoint
 #from subtlenet.backend.keras_objects import *
 #from subtlenet.backend.losses import *
-from keras.layers import Dense, BatchNormalization, Input, Dropout, Activation, concatenate, GRU
+from keras.layers import Dense, BatchNormalization, Input, Dropout, Activation, Concatenate, GRU
 from keras.utils import np_utils
 from keras.optimizers import Adam, Nadam, SGD
 import keras.backend as K
@@ -16,15 +16,17 @@ import os, sys
 import numpy as np
 import pandas as pd
 from collections import namedtuple
+import json
 
 import subtlenet.utils as utils 
 utils.set_processor('cpu')
 VALSPLIT = 0.2 #0.7
 MULTICLASS = False
 REGRESSION = False
+RESHAPE = True
 np.random.seed(5)
 
-basedir = '/uscms/home/rbisnath/nobackup/pkl_files/particle_level_fewer'
+basedir = '/uscms/home/rbisnath/nobackup/pkl_files/sv'
 #'/home/rbisnath/pkl_files/jet_level'
 Nqcd = 1200000
 Nsig = 1200000
@@ -32,6 +34,7 @@ Nsig = 1200000
 def _make_parent(path):
     os.system('mkdir -p %s'%('/'.join(path.split('/')[:-1])))
 
+# retrieving info from j_decayType so we can split response by flavor
 decay_key = { #1:u/d, 2:c/s, 3:b, 4:tautau, 5:gluglu, 6:ZZ, 7:WW
     "QCD": 0,
     "ud": 1,
@@ -43,12 +46,41 @@ decay_key = { #1:u/d, 2:c/s, 3:b, 4:tautau, 5:gluglu, 6:ZZ, 7:WW
     "WW": 7
 }
 
+# gets indicies (evt#) for a desired decay type
 def get_flavor_inds(decays, decay_key):
     flavor_inds = {}
     for k, v in decay_key.iteritems():
         inds = np.where(decays == v)[0]
         if len(inds) != 0: flavor_inds[k] = inds
     return flavor_inds
+
+# tools to reshape data so different kinds of features (cpf vs sv) are grouped
+def get_cols(df, base_cols):
+    cols = []
+    all = list(df.columns)
+    for b in base_cols:
+        cols.append([c for c in all if b in c])
+    return cols
+
+def reshape_df(df, col_names, eles_per_event):
+    arrays = []
+    for k, v in col_names.iteritems():
+        cols = get_cols(df, v)
+        cols = [e for l in cols for e in l] #flattening list
+        cols = list(dict.fromkeys(cols)) #removing duplicates
+        #print "cols: ", cols
+        arr = df[cols]
+        #print arr.shape, '\n', arr.head()
+        arr = arr.values
+
+        n_evts = arr.shape[0]
+        n_particles = eles_per_event[k]
+        n_feats = len(v)
+
+        arr = np.reshape(arr, (n_evts, n_particles, n_feats))
+        arrays.append(arr)
+    return arrays
+
 
 class Sample(object):
     def __init__(self, name, base, max_Y):
@@ -59,7 +91,12 @@ class Sample(object):
         
         self.Yhat = {} 
         if args.pkl:
-            self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x')).values[:nrows]
+            if RESHAPE:
+                self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x'))[:nrows]
+                self.oldX = self.X.values
+                self.X = reshape_df(self.X, column_names, elements_per_evt)
+            else:
+                self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x')).values[:nrows]
             self.SS = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'ss_vars')).values[:nrows]
             self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] ##### switch 'w' to 'j_pt' if using --make_weights
             self.flatY = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'y')).values.flatten()[:nrows]
@@ -96,7 +133,7 @@ class Sample(object):
  
         self.idx = np.random.permutation(self.Y.shape[0])
         self.flavor_inds = get_flavor_inds(self.decay_type, decay_key)
-        print self.name, "self.flavor_inds: ", self.flavor_inds
+        #print self.name, "self.flavor_inds: ", self.flavor_inds
 
         #print "s.decay_type: ", self.decay_type.shape, self.decay_type[:5]
         #print "s.Y: ", self.Y.shape, self.Y[:5]
@@ -117,10 +154,16 @@ class Sample(object):
         else:
             return self.idx[:int(VALSPLIT*len(self.idx))]
     def infer(self, model):
-        if 'GRU' in model.name: self.X = np.reshape(self.X, (self.X.shape[0], 1, self.X.shape[1])) 
-        if 'Dense' in model.name: self.X = np.reshape(self.X, (self.X.shape[0],self.X.shape[1]))
-        self.Yhat[model.name] = model.predict(self.X)
+        if RESHAPE:
+            if 'GRU' in model.name: X = np.reshape(self.X, (self.X.shape[0], 1, self.X.shape[1], self.X.shape[2])) 
+            if 'Dense' in model.name: X = self.oldX#np.reshape(self.oldX, self.oldX.shape[0], self.oldX.shape[1])
+        else:
+            if 'GRU' in model.name: X = np.reshape(self.X, (self.X.shape[0], 1, self.X.shape[1])) 
+            if 'Dense' in model.name: X = np.reshape(self.X, (self.X.shape[0],self.X.shape[1]))
+        self.Yhat[model.name] = model.predict(X)
     def standardize(self, mu, std):
+        if RESHAPE:
+            pass
         self.X = (self.X - mu) / std
     def save_inference(self, model_name='Dense', path='', flavor_split=False):
         if flavor_split:
@@ -186,17 +229,24 @@ def calc_ptweights(feat_train,Y_train):
     return ptweights
                                         
 class ClassModel(object):
-    def __init__(self, n_inputs, h_hidden, n_targets, samples, model):
+    def __init__(self, n_inputs, h_hidden, n_targets, samples, model, n_categories=0):
         self._hidden = 0
         self.name = model
         self.n_inputs = n_inputs
         self.n_targets = n_targets if MULTICLASS else 2
         self.n_hidden = n_hidden
 
-        self.tX = np.vstack([s.X[:][s.tidx] for s in samples])
-        self.tW = np.concatenate([s.W[s.tidx] for s in samples])
-        self.vX = np.vstack([s.X[:][s.vidx] for s in samples])
-        self.vW = np.concatenate([s.W[s.vidx] for s in samples])
+        if n_categories == 0:
+            self.tX = np.vstack([s.oldX[:][s.tidx] for s in samples])
+            self.tW = np.concatenate([s.W[s.tidx] for s in samples])
+            self.vX = np.vstack([s.oldX[:][s.vidx] for s in samples])
+            self.vW = np.concatenate([s.W[s.vidx] for s in samples])
+        else:
+            #print "samples[0].X len, shape of first ele", len(samples[0].X), samples[0].X[0].shape
+            self.tX = [np.vstack([s.X[i][s.tidx] for s in samples]) for i in range(n_categories)]
+            self.vX = [np.vstack([s.X[i][s.vidx] for s in samples]) for i in range(n_categories)]
+            self.tW = np.concatenate([s.W[s.tidx] for s in samples])
+            self.vW = np.concatenate([s.W[s.vidx] for s in samples])
         
         self.tflatY = np.concatenate([s.flatY[s.tidx] for s in samples])
         self.vflatY = np.concatenate([s.flatY[s.vidx] for s in samples])
@@ -248,17 +298,35 @@ class ClassModel(object):
         #print "self.tX Y and W", self.tX, "\n", self.tY, "\n", self.tW
         
         if 'GRU' in self.name:
-            self.tX = np.reshape(self.tX, (self.tX.shape[0], 1, self.tX.shape[1]))
-            self.vX = np.reshape(self.vX, (self.vX.shape[0], 1, self.vX.shape[1]))
+            if n_categories == 0:
+                self.tX = np.reshape(self.tX, (self.tX.shape[0], 1, self.tX.shape[1]))
+                self.vX = np.reshape(self.vX, (self.vX.shape[0], 1, self.vX.shape[1]))
+                self.inputs = Input(shape=(1,self.tX.shape[2]), name='input')
+            else:
+                self.tX = [np.reshape(tX, (tX.shape[0], tX.shape[1], tX.shape[2])) for tX in self.tX]
+                self.vX = [np.reshape(vX, (vX.shape[0], vX.shape[1], vX.shape[2])) for vX in self.vX]
+                #for tX in self.tX: print "tX shape: ", tX.shape
+                #self.inputs = [Input(shape=(1,tX.shape[2]), name='input') for tX in self.tX]
+                self.inputs = [Input(shape=(self.tX[i].shape[1], self.tX[i].shape[2]), name='input_'+str(i)) for i in range(len(self.tX))]
 
-            self.inputs = Input(shape=(1,self.tX.shape[2]), name='input')
-            h = self.inputs
-        
             NPARTS=20
             CLR=0.01
             LWR=0.1
-     
-            gru = GRU(n_inputs,activation='relu',recurrent_activation='hard_sigmoid',name='gru_base')(h)
+            
+            if n_categories == 0:
+                h = self.inputs
+                gru = GRU(n_inputs,activation='relu',recurrent_activation='hard_sigmoid',name='gru_base')(h)
+            else:
+                hs = self.inputs
+                grus = []
+                for i in range(len(hs)):
+                    h = hs[i]
+                    gru = GRU(n_inputs,activation='relu',recurrent_activation='hard_sigmoid',name='gru_base_'+str(i))(h)
+                    #print "gru: ", type(gru), gru.shape, gru
+                    grus.append(gru)
+                gru = Concatenate()(grus)
+
+
             dense   = Dense(200, activation='relu')(gru)
             norm    = BatchNormalization(momentum=0.6, name='dense4_bnorm')(dense)
             dense   = Dense(100, activation='relu')(norm)
@@ -356,7 +424,11 @@ def plot(binning, fn, samples, outpath, xlabel=None, ylabel=None):
 
 
 def get_mu_std(samples, modeldir):
-    X = np.array(np.vstack([s.X for s in samples]), np.float64)
+    if RESHAPE:
+        #X = np.array(np.vstack([np.concatenate([s.X[i].flatten() for i in range(len(s.X))]) for s in samples]), np.float64)
+        X = np.array(np.concatenate([s.X[i].flatten() for s in samples for i in range(len(s.X))]))
+    else:
+        X = np.array(np.vstack([s.X for s in samples]), np.float64)
     mu = np.mean(X, axis=0)
     std = np.std(X, axis=0)
     np.save('standardize_mu.npy',mu)
@@ -431,7 +503,18 @@ if __name__ == '__main__':
     parser.add_argument('--pkl', action='store_true')
     parser.add_argument('--make_weights', action='store_true')
     parser.add_argument('--save_ss', action='store_true')
+    parser.add_argument('--features', type=str, nargs='?', action='store')
     args = parser.parse_args()
+
+    if args.features:
+        print "args.features == True"
+        with open(args.features) as jsonfile:
+            payload = json.load(jsonfile)
+            column_names = payload['column_names']
+            elements_per_evt = payload['elements_per_evt']
+            
+    if RESHAPE:
+        n_categories = 3
 
     figsdir = 'plots/%s/'%(args.version)
     modeldir = 'models/evt/v%i/'%(args.version)
@@ -445,22 +528,30 @@ if __name__ == '__main__':
     BKG = 'BGHToZZ'
 
     models = ['Dense','GRU']
+    #models = ['GRU']
 
     samples = [SIG,BKG]
 
     samples = [Sample(s, basedir, len(samples)) for s in samples]
-    n_inputs = samples[0].X.shape[1]
-    print n_inputs
-    print('# sig: ',samples[0].X.shape[0], '#bkg: ',samples[1].X.shape[0])
-
-    print 'Standardizing...'
-    mu, std = get_mu_std(samples,modeldir)
+    if RESHAPE:
+        n_inputs = 115#samples[0].X.shape[1]
+        print n_inputs
+        print('# sig: ',samples[0].X[0].shape[0], '#bkg: ',samples[1].X[0].shape[0])
+    else:
+        n_inputs = samples[0].X.shape[1]
+        print n_inputs
+        print('# sig: ',samples[0].X.shape[0], '#bkg: ',samples[1].X.shape[0])
+    
+    
+    if not RESHAPE:
+        print 'Standardizing...'
+        mu, std = get_mu_std(samples,modeldir)
     #print "mu, std: ", mu, std
-    [s.standardize(mu, std) for s in samples]
+        [s.standardize(mu, std) for s in samples]
 
     n_hidden = 5
     if 'Dense' in models:
-        modelDNN = ClassModel(n_inputs, n_hidden, len(samples),samples,'Dense')
+        modelDNN = ClassModel(n_inputs, n_hidden, len(samples),samples,'Dense', n_categories=0)
         if args.train:
             print 'Training dense...'
             modelDNN.train(samples)
@@ -481,7 +572,7 @@ if __name__ == '__main__':
       
 
     if 'GRU' in models:
-        modelGRU = ClassModel(n_inputs, n_hidden, len(samples),samples,'GRU')
+        modelGRU = ClassModel(n_inputs, n_hidden, len(samples),samples,'GRU', n_categories=n_categories)
         if args.train:
             print 'Training gru...'
             modelGRU.train(samples)
