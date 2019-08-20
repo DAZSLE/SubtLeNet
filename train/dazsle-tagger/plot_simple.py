@@ -94,12 +94,15 @@ def make_hist(filenames, weight=False, title="", xlabel="", min_=None, max_=None
     bins = np.linspace(min_, max_, 100)
 
     for k, v in arrays.iteritems():
-        print k
-        print "v shape min and max: ", v.shape, '\n', v.min(), '\n', v.max()
+        #print k
+        #print "v shape min and max: ", v.shape, '\n', v.min(), '\n', v.max()
         if weight:
-            w = weights[k][:v.shape[0]]
-            print "using weights: ", w, len(w)
-            plt.hist(v[:nevts], bins=bins, density=True, label=k, histtype='step', weights=w)
+            w = weights[k]
+            #print "using weights: ", w, len(w)
+            n = min(len(w), v.shape[0])
+            v = v[:n]
+            w = w[:n]
+            plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=w)
         else:
             plt.hist(v[:nevts], bins=bins, density=True, label=k, histtype='step')
 

@@ -38,10 +38,24 @@ filenames = {
 flavors = ['cs', 'ud', 'b']
 
 flavor_labels = {
-    '': '',
-    'cs': 'cc/ss',
-    'ud': 'light',
-    'b': 'bb'
+    "WW": {
+        '': '',
+        'cs': 'cs',
+        'ud': 'light',
+        'b': 'bb'
+    },
+    "ZZ": {
+        '': '',
+        'cs': 'cc/ss',
+        'ud': 'light',
+        'b': 'bb'
+    },
+    "roc": {
+        '': '',
+        'cs': 'W->cs, Z->cc/ss',
+        'ud': 'W->light, Z->light',
+        'b': 'Z->bb'
+    }
 }
 
 def make_flavor_filenames():
@@ -83,12 +97,15 @@ def make_hist(var, weight=False, title="", xlabel=""):
     bins = np.linspace(min_, max_, 100)
 
     for k, v in arrays.iteritems():
-        #print "working on:", k
-        #print "v shape min and max: ", v.shape, v.min(), v.max()
+        print "working on:", k
         if weight:
             weights = np.load(filenames[k]['weights'])
-            #print "using weights: ", filenames[k]['weights'], len(weights)
-            plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=weights[:v.shape[0]])
+            n = min(len(weights), v.shape[0])
+            v = v[:n]
+            weights = weights[:n]
+            print "v shape min and max: ", v.shape, v.min(), v.max()
+            print "using weights: ", filenames[k]['weights'], len(weights)
+            plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=weights)
         else:
             plt.hist(v, bins=bins, density=True, label=k, histtype='step')
 
@@ -124,14 +141,19 @@ def make_flavor_hists(var, flavors=[""], weight=False, title="", xlabel=""):
             if v is None: continue
             #print "working on:", k
             #print "v shape min and max: ", v.shape, v.min(), v.max()
-            v = v[np.logical_not(np.isnan(v))]
+            #v = v[np.logical_not(np.isnan(v))]
+            label = k+"->"+flavor_labels[k][orig_f]
             if weight:
                 weights = np.load(filenames[k]['weights'])
-                weights = weights[np.logical_not(np.isnan(weights))]
+                #weights = weights[np.logical_not(np.isnan(weights))]
+                n = min(len(weights), v.shape[0])
+                v = v[:n]
+                weights = weights[:n]
+                #print "v.shape after trim", v.shape
                 #print "using weights: ", filenames[k]['weights'], len(weights)
-                plt.hist(v, bins=bins, density=True, label=k+"->"+flavor_labels[orig_f], histtype='step', weights=weights[:v.shape[0]])
+                plt.hist(v, bins=bins, density=True, label=label, histtype='step', weights=weights)
             else:
-                plt.hist(v, bins=bins, density=True, label=k+"->"+flavor_labels[orig_f], histtype='step')
+                plt.hist(v, bins=bins, density=True, label=label, histtype='step')
     
     plt.legend(loc='upper right')
     PdfPages.savefig(out, dpi=100)
@@ -165,9 +187,10 @@ def make_roc(flavors=[""]):
         fpr_dnn, tpr_dnn, _ = roc_curve(1 - y, dnn_yhat[:, :1])
         fpr_gru, tpr_gru, _ = roc_curve(1 - y, gru_yhat[:, :1])
 
+        label = flavor_labels['roc'][orig_f]
         plt.plot([0,1], [0,1], 'k--')
-        plt.plot(fpr_dnn, tpr_dnn, label='DNN '+flavor_labels[orig_f])
-        plt.plot(fpr_gru, tpr_gru, label='GRU '+flavor_labels[orig_f])
+        plt.plot(fpr_dnn, tpr_dnn, label='DNN '+label)
+        plt.plot(fpr_gru, tpr_gru, label='GRU '+label)
 
     plt.legend(loc='best')
     PdfPages.savefig(out, dpi=100)
@@ -184,7 +207,7 @@ make_flavor_hists("DNN", flavors=flavors, weight=True, title="DNN", xlabel="Resp
 make_flavor_hists("GRU", flavors=flavors, weight=True, title="GRU", xlabel="Response")
 
 make_roc()
-make_roc(flavors=flavors)
+#make_roc(flavors=flavors)
 make_roc(flavors=['cs', 'ud'])
 
 out.close()
