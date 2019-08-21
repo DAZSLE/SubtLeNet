@@ -26,8 +26,9 @@ REGRESSION = False
 RESHAPE = True
 np.random.seed(5)
 
-basedir = '/uscms/home/rbisnath/nobackup/pkl_files/sv'
-#'/home/rbisnath/pkl_files/jet_level'
+basedir = '/home/rbisnath/pkl_files/flavor_cut/sv'
+#'/uscms/home/rbisnath/nobackup/pkl_files/sv'
+
 Nqcd = 1200000
 Nsig = 1200000
 
@@ -155,8 +156,8 @@ class Sample(object):
             return self.idx[:int(VALSPLIT*len(self.idx))]
     def infer(self, model):
         if RESHAPE:
-            if 'GRU' in model.name: X = np.reshape(self.X, (self.X.shape[0], 1, self.X.shape[1], self.X.shape[2])) 
-            if 'Dense' in model.name: X = self.oldX#np.reshape(self.oldX, self.oldX.shape[0], self.oldX.shape[1])
+            if 'GRU' in model.name: X = self.X #np.reshape(self.X, (self.X.shape[0], 1, self.X.shape[1], self.X.shape[2])) 
+            if 'Dense' in model.name: X = self.oldX #np.reshape(self.oldX, self.oldX.shape[0], self.oldX.shape[1])
         else:
             if 'GRU' in model.name: X = np.reshape(self.X, (self.X.shape[0], 1, self.X.shape[1])) 
             if 'Dense' in model.name: X = np.reshape(self.X, (self.X.shape[0],self.X.shape[1]))
@@ -236,17 +237,19 @@ class ClassModel(object):
         self.n_targets = n_targets if MULTICLASS else 2
         self.n_hidden = n_hidden
 
-        if n_categories == 0:
+        if n_categories == 0 and RESHAPE: #DNN and s.X has multiple inputs
             self.tX = np.vstack([s.oldX[:][s.tidx] for s in samples])
-            self.tW = np.concatenate([s.W[s.tidx] for s in samples])
             self.vX = np.vstack([s.oldX[:][s.vidx] for s in samples])
-            self.vW = np.concatenate([s.W[s.vidx] for s in samples])
-        else:
+        elif n_categories == 0: #DNN or GRU with one input
+            self.tX = np.vstack([s.X[:][s.tidx] for s in samples])
+            self.vX = np.vstack([s.X[:][s.vidx] for s in samples])
+        else: #multiple GRUs
             #print "samples[0].X len, shape of first ele", len(samples[0].X), samples[0].X[0].shape
             self.tX = [np.vstack([s.X[i][s.tidx] for s in samples]) for i in range(n_categories)]
             self.vX = [np.vstack([s.X[i][s.vidx] for s in samples]) for i in range(n_categories)]
-            self.tW = np.concatenate([s.W[s.tidx] for s in samples])
-            self.vW = np.concatenate([s.W[s.vidx] for s in samples])
+
+        self.tW = np.concatenate([s.W[s.tidx] for s in samples])
+        self.vW = np.concatenate([s.W[s.vidx] for s in samples])
         
         self.tflatY = np.concatenate([s.flatY[s.tidx] for s in samples])
         self.vflatY = np.concatenate([s.flatY[s.vidx] for s in samples])
@@ -288,11 +291,14 @@ class ClassModel(object):
         #print "\ntW after: ", self.tW.shape, self.tW[:100]
  
         #normalizing the weights
-        for i in xrange(self.tY.shape[1]):
-            tot = np.sum(self.tW[self.tY[:,i] == 1], dtype=np.int64) 
-            #print "tot: ", tot
-            self.tW[self.tY[:,i] == 1] *= 100.0/tot
-            self.vW[self.vY[:,i] == 1] *= 100.0/tot
+        try:
+            for i in xrange(self.tY.shape[1]):
+                tot = np.sum(self.tW[self.tY[:,i] == 1], dtype=np.int64) 
+                #print "tot: ", tot
+                self.tW[self.tY[:,i] == 1] *= 100.0/tot
+                self.vW[self.vY[:,i] == 1] *= 100.0/tot
+        except:
+            "Error when normalizing weights, check if nevts has changed between now and the last time this script was run with --make_weights"
         
         #print "shapes of vX Y and W: ", self.vX.shape, self.vY.shape, self.vW.shape
         #print "self.tX Y and W", self.tX, "\n", self.tY, "\n", self.tW
@@ -444,52 +450,6 @@ def get_mu_std(samples, modeldir):
     
     return mu, std
 
-def make_plots(samples):
-        for s in samples:
-            s.infer(model)
-
-        samples.reverse()
-        if REGRESSION:
-            plot(np.linspace(60, 160, 20),
-                 lambda s : s.Yhat[s.vidx][:,0],
-                 samples, figsdir+'mass_regressed', xlabel='Regressed mass')
-            plot(np.linspace(60, 160, 20),
-                 lambda s : s.Y[s.vidx],
-                 samples, figsdir+'mass_truth', xlabel='True mass')
-        else:
-            roccer_hists = {}
-            roccer_hists_n = {}
-            roccer_vars_n = {'N2':1}
-
-            for i in xrange(len(samples) if MULTICLASS else 2):
-                roccer_hists = plot(np.linspace(0, 1, 100), 
-                     lambda s, i=i : s.Yhat[s.vidx,i],
-                     samples, figsdir+'class_%i_%s'%(i,args.model), xlabel='Class %i %s'%(i,args.model))
-  
-
-                for idx,num in roccer_vars_n.iteritems():
-                     roccer_hists_n[idx] = plot(np.linspace(0,1,50),
-                     lambda s: s.N2[s.vidx,0], 
-                     samples, figsdir+'class_%i_%s'%(i,idx), xlabel='Class %i %s'%(i,idx))
-
-
-            r1 = utils.Roccer(y_range=range(0,1),axis=[0,1,0,1])
-            r1.clear()
-            print roccer_hists
-            sig_hists = {args.model:roccer_hists[samples[0]],
-                'N2':roccer_hists_n['N2'][samples[0]]}
-
-            bkg_hists = {args.model:roccer_hists[samples[1]],
-                'N2':roccer_hists_n['N2'][samples[1]]}
-
-            r1.add_vars(sig_hists,           
-                        bkg_hists,
-                        {args.model:args.model,
-                         'N2':'N2'}
-            )
-            r1.plot(figsdir+'class_%s_%sROC'%(str(args.version),args.model))
-
-
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -515,6 +475,8 @@ if __name__ == '__main__':
             
     if RESHAPE:
         n_categories = 3
+    else:
+        n_categories = 0
 
     figsdir = 'plots/%s/'%(args.version)
     modeldir = 'models/evt/v%i/'%(args.version)
@@ -546,7 +508,7 @@ if __name__ == '__main__':
     if not RESHAPE:
         print 'Standardizing...'
         mu, std = get_mu_std(samples,modeldir)
-    #print "mu, std: ", mu, std
+        #print "mu, std: ", mu, std
         [s.standardize(mu, std) for s in samples]
 
     n_hidden = 5
@@ -618,7 +580,7 @@ if __name__ == '__main__':
                        samples, figsdir+'class_%i_%s'%(i,model), xlabel='Class %i %s'%(i,model))
   
                 sig_hists[model] = roccer_hists[SIG]
-                bkg_hists[model] = roccer_hists[BKG] 
+                bkg_hists[model] = roccer_hists[BKG]
 
         r1 = utils.Roccer(y_range=range(0,1),axis=[0,1,0,1])
         r1.clear()

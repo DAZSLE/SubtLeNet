@@ -75,6 +75,7 @@ out = PdfPages("out.pdf")
 def make_arrays(var):
     arrays = {}
     for k, v in filenames.iteritems():
+        '''
         try:
             try:
                 arrays[k] = np.load(v[var])[:, :1]
@@ -82,6 +83,18 @@ def make_arrays(var):
                 arrays[k] = np.load(v[var])
         except:
             arrays[k] = None
+        '''
+        try:
+            arr = np.load(v[var])
+        except:
+            continue
+        #print "In make_arrays, ", var, arr.ndim
+        if arr.ndim == 1:
+            arrays[k] = arr
+        elif arr.ndim == 2:
+            arrays[k] = arr[:, :1]
+        else:
+            print "make arrays: got input w more than 2 dims"
         #print type(arrays[k]), arrays[k]
 
     return arrays
@@ -97,14 +110,14 @@ def make_hist(var, weight=False, title="", xlabel=""):
     bins = np.linspace(min_, max_, 100)
 
     for k, v in arrays.iteritems():
-        print "working on:", k
+        #print "working on hist for:", k
         if weight:
             weights = np.load(filenames[k]['weights'])
             n = min(len(weights), v.shape[0])
             v = v[:n]
             weights = weights[:n]
-            print "v shape min and max: ", v.shape, v.min(), v.max()
-            print "using weights: ", filenames[k]['weights'], len(weights)
+            #print "v shape min and max: ", v.shape, v.min(), v.max()
+            #print "using weights: ", filenames[k]['weights'], len(weights)
             plt.hist(v, bins=bins, density=True, label=k, histtype='step', weights=weights)
         else:
             plt.hist(v, bins=bins, density=True, label=k, histtype='step')
@@ -185,6 +198,7 @@ def make_roc(flavors=[""]):
             print e
 
         fpr_dnn, tpr_dnn, _ = roc_curve(1 - y, dnn_yhat[:, :1])
+        print "gru y, yhat .shape: ", y.shape, gru_yhat.shape
         fpr_gru, tpr_gru, _ = roc_curve(1 - y, gru_yhat[:, :1])
 
         label = flavor_labels['roc'][orig_f]
