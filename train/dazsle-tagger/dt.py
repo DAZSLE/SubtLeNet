@@ -26,8 +26,8 @@ REGRESSION = False
 RESHAPE = True
 np.random.seed(5)
 
-basedir = '/home/rbisnath/pkl_files/flavor_cut/sv'
-#'/uscms/home/rbisnath/nobackup/pkl_files/sv'
+basedir = '/uscms/home/rbisnath/nobackup/pkl_files/flavor_cut/sv'
+#'/home/rbisnath/pkl_files/flavor_cut/sv'
 
 Nqcd = 1200000
 Nsig = 1200000
@@ -99,7 +99,7 @@ class Sample(object):
             else:
                 self.X = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'x')).values[:nrows]
             self.SS = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'ss_vars')).values[:nrows]
-            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] ##### switch 'w' to 'j_pt' if using --make_weights
+            self.W = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'j_pt')).values.flatten()[:nrows] #switch 'w' to 'j_pt' if using --make_weights
             self.flatY = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'y')).values.flatten()[:nrows]
             self.decay_type = pd.read_pickle('%s/%s_%s.pkl'%(base, name, 'decay_type')).values.flatten()[:nrows]
         else:
@@ -167,20 +167,28 @@ class Sample(object):
             pass
         self.X = (self.X - mu) / std
     def save_inference(self, model_name='Dense', path='', flavor_split=False):
+        np.save(path+str(self.name)+"_vidx.npy", self.vidx)
         if flavor_split:
             inds = self.flavor_inds
             for k, v in inds.iteritems():
-                np.save(path+str(self.name)+"_Y_"+k+".npy", self.Y[v])
+                v = [i for i in v if i in self.vidx]
+                np.save(path+str(self.name)+"_Y_"+k+".npy", self.Y[v, 0])
                 if 'Dense' in model_name:
-                    np.save(path+str(self.name)+"_dnn_Yhat_"+k+".npy", self.Yhat['Dense'][v])
+                    np.save(path+str(self.name)+"_dnn_Yhat_"+k+".npy", self.Yhat['Dense'][v, 0])
                 elif 'GRU' in model_name:
-                    np.save(path+str(self.name)+"_gru_Yhat_"+k+".npy", self.Yhat['GRU'][v])
+                    np.save(path+str(self.name)+"_gru_Yhat_"+k+".npy", self.Yhat['GRU'][v, 0])
         else:
             np.save(path+str(self.name)+"_Y_all.npy", self.Y)
             if 'Dense' in model_name:
-                np.save(path+str(self.name)+"_dnn_Yhat_all.npy", self.Yhat['Dense'])
+                np.save(path+str(self.name)+"_dnn_Yhat_all.npy", self.Yhat['Dense'][self.vidx, 0])
             elif 'GRU' in model_name:
-                np.save(path+str(self.name)+"_gru_Yhat_all.npy", self.Yhat['GRU'])
+                np.save(path+str(self.name)+"_gru_Yhat_all.npy", self.Yhat['GRU'][self.vidx, 0])
+    def save_X(self, path=''):
+        if RESHAPE:
+            for i in range(len(self.X)):
+                np.save(path+str(self.name)+"_X"+str(i)+".npy", self.X[i])
+        else:
+            np.save(path+str(self.name)+"_X.npy", self.X)
         
 
 def calc_ptweights(feat_train,Y_train):
@@ -308,7 +316,7 @@ class ClassModel(object):
                 self.tX = np.reshape(self.tX, (self.tX.shape[0], 1, self.tX.shape[1]))
                 self.vX = np.reshape(self.vX, (self.vX.shape[0], 1, self.vX.shape[1]))
                 self.inputs = Input(shape=(1,self.tX.shape[2]), name='input')
-            else:
+            else: #####
                 self.tX = [np.reshape(tX, (tX.shape[0], tX.shape[1], tX.shape[2])) for tX in self.tX]
                 self.vX = [np.reshape(vX, (vX.shape[0], vX.shape[1], vX.shape[2])) for vX in self.vX]
                 #for tX in self.tX: print "tX shape: ", tX.shape
@@ -319,7 +327,7 @@ class ClassModel(object):
             CLR=0.01
             LWR=0.1
             
-            if n_categories == 0:
+            if n_categories < 2:
                 h = self.inputs
                 gru = GRU(n_inputs,activation='relu',recurrent_activation='hard_sigmoid',name='gru_base')(h)
             else:
@@ -365,16 +373,15 @@ class ClassModel(object):
 
 
     def train(self, samples):
-        #####
-        history = self.model.fit(self.tX, self.tY, sample_weight=self.tW, 
-                                 batch_size=10000, epochs=10, shuffle=True,
+        history = self.model.fit(self.tX, self.tY, sample_weight=self.tW,  ###
+                                 batch_size=1000, epochs=50, shuffle=True,
                                  validation_data=(self.vX, self.vY, self.vW))
-
-        with open('history.log','w') as flog:
+        with open(self.name+'_history.log','w+') as f:
             history = history.history
-            flog.write(','.join(history.keys())+'\n')
+            f.write(','.join(history.keys())+'\n')
             for l in zip(*history.values()):
-                flog.write(','.join([str(x) for x in l])+'\n')
+                f.write(','.join([str(x) for x in l])+'\n')
+            f.close
 
     def save_as_keras(self, path):
         _make_parent(path)
@@ -467,16 +474,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.features:
-        print "args.features == True"
         with open(args.features) as jsonfile:
             payload = json.load(jsonfile)
             column_names = payload['column_names']
             elements_per_evt = payload['elements_per_evt']
             
-    if RESHAPE:
-        n_categories = 3
-    else:
-        n_categories = 0
+    n_categories = len(column_names) if RESHAPE else 0
+    print "n_categories: ", n_categories
 
     figsdir = 'plots/%s/'%(args.version)
     modeldir = 'models/evt/v%i/'%(args.version)
@@ -496,8 +500,11 @@ if __name__ == '__main__':
 
     samples = [Sample(s, basedir, len(samples)) for s in samples]
     if RESHAPE:
-        n_inputs = 115#samples[0].X.shape[1]
-        print n_inputs
+        X = samples[0].X
+        #print "len X, shape of X's elements: ", len(X)
+        #for x in X: print x.shape
+        n_inputs = sum([X[i].shape[1] * X[i].shape[2] for i in range(len(X))])
+        print "n_inputs: ", n_inputs
         print('# sig: ',samples[0].X[0].shape[0], '#bkg: ',samples[1].X[0].shape[0])
     else:
         n_inputs = samples[0].X.shape[1]
@@ -531,6 +538,7 @@ if __name__ == '__main__':
               #np.save(str(s.name)+"_Y.npy", s.Y)
               s.save_inference(model_name="Dense", path=inferencedir)
               s.save_inference(model_name="Dense", path=flavordir, flavor_split=True)
+              s.save_X()
       
 
     if 'GRU' in models:

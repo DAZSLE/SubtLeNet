@@ -17,7 +17,8 @@ filenames = {
         "N2": "BGHToWW_ss.npy",
         "GRU": inf_dir+"BGHToWW_gru_Yhat_all.npy",
         "DNN": inf_dir+"BGHToWW_dnn_Yhat_all.npy",
-        "weights": "dazsle_weights_sig.npy",
+        #"weights": "dazsle_weights_sig.npy",
+        "weights": "vW.npy",
         "Y": inf_dir+"BGHToWW_Y_all.npy",
         "dnn_base": flavor_dir+"BGHToWW_dnn_Yhat_",
         "gru_base": flavor_dir+"BGHToWW_gru_Yhat_",
@@ -27,7 +28,8 @@ filenames = {
         "N2": "BGHToZZ_ss.npy",
         "GRU": inf_dir+"BGHToZZ_gru_Yhat_all.npy",
         "DNN": inf_dir+"BGHToZZ_dnn_Yhat_all.npy",
-        "weights": "dazsle_weights_bkg.npy",
+        #"weights": "dazsle_weights_bkg.npy",
+        "weights": "vW.npy",
         "Y": inf_dir+"BGHToZZ_Y_all.npy",
         "dnn_base": flavor_dir+"BGHToZZ_dnn_Yhat_",
         "gru_base": flavor_dir+"BGHToZZ_gru_Yhat_",
@@ -197,9 +199,9 @@ def make_roc(flavors=[""]):
         except Exception as e:
             print e
 
-        fpr_dnn, tpr_dnn, _ = roc_curve(1 - y, dnn_yhat[:, :1])
+        fpr_dnn, tpr_dnn, _ = roc_curve(1 - y, dnn_yhat)
         print "gru y, yhat .shape: ", y.shape, gru_yhat.shape
-        fpr_gru, tpr_gru, _ = roc_curve(1 - y, gru_yhat[:, :1])
+        fpr_gru, tpr_gru, _ = roc_curve(1 - y, gru_yhat)
 
         label = flavor_labels['roc'][orig_f]
         plt.plot([0,1], [0,1], 'k--')

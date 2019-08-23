@@ -8,5 +8,19 @@
 		"charged": 10,
 		"neutral": 10,
 		"sv": 5
+	},
+	"!column_names": {
+		"charged": ["fj_cpf_pt", "fj_cpf_vtxID", "fj_cpf_d0", "fj_cpf_dz"],
+		"neutral": ["fj_ipf_pt", "fj_ipf_d0", "fj_ipf_dz"]
+	},
+	"!elements_per_evt": {
+		"charged": 10,
+		"neutral": 10
+	},
+	"!column_names": {
+		"charged": ["fj_cpf_pt", "fj_cpf_vtxID", "fj_cpf_d0", "fj_cpf_dz"]
+	},
+	"!elements_per_evt": {
+		"charged": 10
 	}
 }
