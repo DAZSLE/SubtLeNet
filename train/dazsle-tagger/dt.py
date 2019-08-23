@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve
 from sklearn.utils import shuffle
 from keras.models import Model, load_model
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, EarlyStopping
 #from subtlenet.backend.keras_objects import *
 #from subtlenet.backend.losses import *
 from keras.layers import Dense, BatchNormalization, Input, Dropout, Activation, Concatenate, GRU
@@ -269,7 +269,7 @@ class ClassModel(object):
         self.vSS = np.vstack([s.SS[s.vidx] for s in samples])
 
         #print "tW before (i.e. fj_pt): ", self.tW.shape, self.tW[:10]
-        ##### uncomment below if using --make_weights / comment out if using imported weights
+        #uncomment below if using --make_weights / comment out if using imported weights
         
         if args.make_weights and 'Dense' in self.name:
             self.tW = calc_ptweights(self.tW, self.tflatY)
@@ -316,7 +316,7 @@ class ClassModel(object):
                 self.tX = np.reshape(self.tX, (self.tX.shape[0], 1, self.tX.shape[1]))
                 self.vX = np.reshape(self.vX, (self.vX.shape[0], 1, self.vX.shape[1]))
                 self.inputs = Input(shape=(1,self.tX.shape[2]), name='input')
-            else: #####
+            else:
                 self.tX = [np.reshape(tX, (tX.shape[0], tX.shape[1], tX.shape[2])) for tX in self.tX]
                 self.vX = [np.reshape(vX, (vX.shape[0], vX.shape[1], vX.shape[2])) for vX in self.vX]
                 #for tX in self.tX: print "tX shape: ", tX.shape
@@ -374,8 +374,9 @@ class ClassModel(object):
 
     def train(self, samples):
         history = self.model.fit(self.tX, self.tY, sample_weight=self.tW,  ###
-                                 batch_size=1000, epochs=50, shuffle=True,
-                                 validation_data=(self.vX, self.vY, self.vW))
+                                 batch_size=1000, epochs=100, shuffle=True,
+                                 validation_data=(self.vX, self.vY, self.vW),
+                                 callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=5, mode='auto')])
         with open(self.name+'_history.log','w+') as f:
             history = history.history
             f.write(','.join(history.keys())+'\n')
