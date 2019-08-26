@@ -56,30 +56,36 @@ def get_flavor_inds(decays, decay_key):
     return flavor_inds
 
 # tools to reshape data so different kinds of features (cpf vs sv) are grouped
-def get_cols(df, base_cols):
+def get_cols(base_cols, n):
     cols = []
-    all = list(df.columns)
     for b in base_cols:
-        cols.append([c for c in all if b in c])
+        for i in range(n):
+            cols.append(b+"[{}]".format(i))
     return cols
 
 def reshape_df(df, col_names, eles_per_event):
     arrays = []
     for k, v in col_names.iteritems():
-        cols = get_cols(df, v)
-        cols = [e for l in cols for e in l] #flattening list
-        cols = list(dict.fromkeys(cols)) #removing duplicates
+        n_particles = eles_per_event[k]
+        cols = get_cols(v, n_particles)
+        #cols = [e for l in cols for e in l] #flattening list
+        #cols = list(dict.fromkeys(cols)) #removing duplicates
         #print "cols: ", cols
         arr = df[cols]
         #print arr.shape, '\n', arr.head()
         arr = arr.values
 
         n_evts = arr.shape[0]
-        n_particles = eles_per_event[k]
         n_feats = len(v)
 
-        arr = np.reshape(arr, (n_evts, n_particles, n_feats))
-        arrays.append(arr)
+        evts = []
+        for i in range(n_evts):
+            evts.append(np.reshape(arr[i], (n_particles, n_feats), order="F"))
+        evts = np.stack(evts)
+        #print "in reshape df, evts.shape: ", evts.shape
+
+        #arr = np.reshape(arr, (n_evts, n_particles, n_feats))
+        arrays.append(evts)
     return arrays
 
 
@@ -374,9 +380,9 @@ class ClassModel(object):
 
     def train(self, samples):
         history = self.model.fit(self.tX, self.tY, sample_weight=self.tW,  ###
-                                 batch_size=1000, epochs=100, shuffle=True,
+                                 batch_size=1000, epochs=50, shuffle=True,
                                  validation_data=(self.vX, self.vY, self.vW),
-                                 callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=5, mode='auto')])
+                                 callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=10, mode='auto')])
         with open(self.name+'_history.log','w+') as f:
             history = history.history
             f.write(','.join(history.keys())+'\n')
