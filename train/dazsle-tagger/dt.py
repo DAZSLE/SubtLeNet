@@ -8,7 +8,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping
 #from subtlenet.backend.keras_objects import *
 #from subtlenet.backend.losses import *
 from keras.layers import Dense, BatchNormalization, Input, Dropout, Activation, Concatenate, GRU
-from keras.utils import np_utils, plot_model
+from keras.utils import np_utils
 from keras.optimizers import Adam, Nadam, SGD
 import keras.backend as K
 from tensorflow.python.framework import graph_util, graph_io
@@ -26,8 +26,8 @@ REGRESSION = False
 RESHAPE = True
 np.random.seed(5)
 
-basedir = '/uscms/home/rbisnath/nobackup/pkl_files/flavor_cut/sv'
-#'/home/rbisnath/pkl_files/flavor_cut/sv'
+basedir = '/home/rbisnath/pkl_files/flavor_cut/sv'
+#'/uscms/home/rbisnath/nobackup/pkl_files/flavor_cut/sv'
 
 Nqcd = 1200000
 Nsig = 1200000
@@ -528,8 +528,6 @@ if __name__ == '__main__':
     n_hidden = 5
     if 'Dense' in models:
         modelDNN = ClassModel(n_inputs, n_hidden, len(samples),samples,'Dense', n_categories=0)
-        plot_model(modelDNN, show_shapes=True, to_file='DNN_shapes.png')
-        plot_model(modelDNN, show_shapes=False, to_file='DNN_no_shapes.png')
         if args.train:
             print 'Training dense...'
             modelDNN.train(samples)
@@ -552,9 +550,6 @@ if __name__ == '__main__':
 
     if 'GRU' in models:
         modelGRU = ClassModel(n_inputs, n_hidden, len(samples),samples,'GRU', n_categories=n_categories)
-        plot_model(modelGRU, show_shapes=True, to_file='GRU_shapes.png')
-        plot_model(modelGRU, show_shapes=False, to_file='GRU_no_shapes.png')
-        plot_model(modelGRU, expand_nested=True, to_file='GRU_expanded.png')
         if args.train:
             print 'Training gru...'
             modelGRU.train(samples)
