@@ -8,7 +8,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping
 #from subtlenet.backend.keras_objects import *
 #from subtlenet.backend.losses import *
 from keras.layers import Dense, BatchNormalization, Input, Dropout, Activation, Concatenate, GRU
-from keras.utils import np_utils
+from keras.utils import np_utils, plot_model
 from keras.optimizers import Adam, Nadam, SGD
 import keras.backend as K
 from tensorflow.python.framework import graph_util, graph_io
@@ -380,7 +380,7 @@ class ClassModel(object):
 
     def train(self, samples):
         history = self.model.fit(self.tX, self.tY, sample_weight=self.tW,  ###
-                                 batch_size=1000, epochs=50, shuffle=True,
+                                 batch_size=1000, epochs=1, shuffle=True,
                                  validation_data=(self.vX, self.vY, self.vW),
                                  callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=10, mode='auto')])
         with open(self.name+'_history.log','w+') as f:
@@ -528,6 +528,8 @@ if __name__ == '__main__':
     n_hidden = 5
     if 'Dense' in models:
         modelDNN = ClassModel(n_inputs, n_hidden, len(samples),samples,'Dense', n_categories=0)
+        plot_model(modelDNN, show_shapes=True, to_file='DNN_shapes.png')
+        plot_model(modelDNN, show_shapes=False, to_file='DNN_no_shapes.png')
         if args.train:
             print 'Training dense...'
             modelDNN.train(samples)
@@ -550,6 +552,9 @@ if __name__ == '__main__':
 
     if 'GRU' in models:
         modelGRU = ClassModel(n_inputs, n_hidden, len(samples),samples,'GRU', n_categories=n_categories)
+        plot_model(modelGRU, show_shapes=True, to_file='GRU_shapes.png')
+        plot_model(modelGRU, show_shapes=False, to_file='GRU_no_shapes.png')
+        plot_model(modelGRU, expand_nested=True, to_file='GRU_expanded.png')
         if args.train:
             print 'Training gru...'
             modelGRU.train(samples)
