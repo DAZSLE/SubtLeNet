@@ -14,6 +14,7 @@ to make the package available system-wide.
 
 ### Converting .root files to .pkl 
 To prepare samples for training, they must be converted from .root files to .pkl or .npy files.
+
 This can be done using convert2.py (convert.py is deprecated).
 
 #### convert_settings.json
@@ -57,8 +58,11 @@ optional arguments:
 
 ### Adding New Variables
 add_vars.py can be used to add features/columns to the .pkl files that need to be calculated from existing features.
+
 It takes one argument, `--json`, which must be used to point to a .json file with a filepath from which it can read the .pkl files.
-plot_settings.json is good for this purpose, as this script and /python/subtlenet/plot.py usually are run around the same point in the overall process
+
+plot_settings.json is good for this purpose, as this script and /python/subtlenet/plot.py usually are run around the same point in the overall process.
+
 Scroll to the bottom of this script to comment/uncomment function calls before use to make sure you add the variables you want.
 
 ### Making Plots 
@@ -78,3 +82,30 @@ Scroll to the bottom of the script to comment/uncomment function calls.
 In general, `make_hists(vars)` will make a histogram comparing each var in vars across the files specified in the .json file
 
 ## Training
+
+### dt.py
+There are a few things hard coded in dt.py you'll have to change before training
+<ul>
+  <li>`RESHAPE` When this is set to `False`, the features will all just be concatenated together and fed into the networks, when set to `True`, features like cpf_pt will be passed as 2d arrays, with one axis for particles, and another for features<\li>
+  <li>If `RESHAPE = True` you **must** pass features.json to dt.py using `--features features.json`, so that it knows how to reshape the data properly<\li>
+  <li>`basedir` This is the dir where dt.py will pull root files from<\li>
+  <li>On line 382, `history = self.model.fit(...)`<\li> is where the hyperparameters for the training can be adjusted
+  <li>In main, around line 500, `SIG` and `BKG` need to be changed to reflect the names of the samples being used<\li>
+<\ul>
+ 
+When you run dt.py the first time for a given set of samples, make sure you include `--make_weights`, it takes forever so don't run with this if you don't have to, but this will calculate and save the pt weights for the background.
+ 
+Usually run with: `./dt.py --train --plot --pkl --features features.json`
+
+`--infer` can be used to have a saved model make an inference on a new dataset, the sample name and path are hard-coded in main.
+
+## Plotting
+Run loss_plot.py to save plots of accuracy vs epoch and loss vs epoch to `plots/0/` with the rest of the training plots.
+
+Run plot.py to make response and roc curves that separate the response for each sample into categories based on flavor.
+
+Run mass_sculpt_plots.py to make plots of jet mass for each sample, but with a series of cuts applied based on the network response.
+
+Run scatter_plots.py to make plots/heatmaps of jet mass vs network response (or any other pair of vars if you edit the script).
+
+
