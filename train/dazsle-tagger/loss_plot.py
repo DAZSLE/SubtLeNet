@@ -15,7 +15,13 @@ for l in lines[1:]:
     data.append(l[:-1].split(","))
 
 data = pd.DataFrame(data=data, columns=["accuracy", "loss", "val_acc", "val_loss"])
-#print(data.head())    
+#print(data.head())
+aliases = {
+    "accuracy": "training accuracy",
+    "loss": "training loss",
+    "val_acc": "testing accuracy",
+    "val_loss": "testing loss"
+}
 
 out = PdfPages("plots/0/acc_loss.pdf")
 
@@ -29,7 +35,7 @@ def make_plot(data, columns, title="", xlabel=""):
         y = list(data[col])
         y = [float(n) for n in y]
         #print(x, y)
-        plt.plot(x, y, label=col)
+        plt.plot(x, y, label=aliases[col])
 
     plt.legend(loc='upper right')
     

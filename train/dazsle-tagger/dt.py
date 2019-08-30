@@ -378,11 +378,13 @@ class ClassModel(object):
         self.model.summary()
 
 
-    def train(self, samples):
+    def train(self, samples, path):
         history = self.model.fit(self.tX, self.tY, sample_weight=self.tW,  ###
-                                 batch_size=1000, epochs=1, shuffle=True,
+                                 batch_size=100, epochs=100, shuffle=True,
                                  validation_data=(self.vX, self.vY, self.vW),
-                                 callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=10, mode='auto')])
+                                 callbacks=[
+                                     EarlyStopping(monitor='val_loss', min_delta=0, patience=15, mode='auto'),
+                                     ModelCheckpoint(path, monitor='val_loss', save_best_only=True)])
         with open(self.name+'_history.log','w+') as f:
             history = history.history
             f.write(','.join(history.keys())+'\n')
@@ -478,6 +480,7 @@ if __name__ == '__main__':
     parser.add_argument('--make_weights', action='store_true')
     parser.add_argument('--save_ss', action='store_true')
     parser.add_argument('--features', type=str, nargs='?', action='store')
+    parser.add_argument('--infer', action='store_true', help='use a saved model to make an inference')
     args = parser.parse_args()
 
     if args.features:
@@ -491,7 +494,7 @@ if __name__ == '__main__':
 
     figsdir = 'plots/%s/'%(args.version)
     modeldir = 'models/evt/v%i/'%(args.version)
-    inferencedir = 'inference/'
+    inferencedir = 'inference/' #where to save Y and Yhat after training
     flavordir = inferencedir+'flavor_split/'
 
     _make_parent(modeldir)
@@ -499,11 +502,20 @@ if __name__ == '__main__':
     _make_parent(flavordir)
     SIG = 'BGHToWW'
     BKG = 'BGHToZZ'
+    QCD = 'QCD'
 
     models = ['Dense','GRU']
     #models = ['GRU']
 
     samples = [SIG,BKG]
+    inference_targets = [QCD]
+
+    if args.infer: #loading sample to make infernce on w saved model
+        basedir = '/home/rbisnath/pkl_files/soup/qcd_sv'
+        samples = inference_targets
+        if args.train:
+            print("Warning: --train and --infer cannot be used at the same time; setting args.train to false")
+            args.train = False
 
     samples = [Sample(s, basedir, len(samples)) for s in samples]
     if RESHAPE:
@@ -512,11 +524,11 @@ if __name__ == '__main__':
         #for x in X: print x.shape
         n_inputs = sum([X[i].shape[1] * X[i].shape[2] for i in range(len(X))])
         print "n_inputs: ", n_inputs
-        print('# sig: ',samples[0].X[0].shape[0], '#bkg: ',samples[1].X[0].shape[0])
+        if not args.infer: print('# sig: ',samples[0].X[0].shape[0], '#bkg: ',samples[1].X[0].shape[0])
     else:
         n_inputs = samples[0].X.shape[1]
         print n_inputs
-        print('# sig: ',samples[0].X.shape[0], '#bkg: ',samples[1].X.shape[0])
+        if not args.infer: print('# sig: ',samples[0].X.shape[0], '#bkg: ',samples[1].X.shape[0])
     
     
     if not RESHAPE:
@@ -530,12 +542,12 @@ if __name__ == '__main__':
         modelDNN = ClassModel(n_inputs, n_hidden, len(samples),samples,'Dense', n_categories=0)
         if args.train:
             print 'Training dense...'
-            modelDNN.train(samples)
-            modelDNN.save_as_keras(modeldir+'/weights_dense.h5')
-            modelDNN.save_as_tf(modeldir+'/graph_dense.pb')
+            modelDNN.train(samples, modeldir+'/weights_dense.h5')
+            #modelDNN.save_as_keras(modeldir+'/weights_dense.h5')
+            #modelDNN.save_as_tf(modeldir+'/graph_dense.pb')
         else:
             print 'Loading dense...'
-            modelDNN.load_model(modeldir+'weights_dense.h5')
+            modelDNN.load_model(modeldir+'/weights_dense.h5')
 
         if args.plot:
             for s in samples:
@@ -545,19 +557,19 @@ if __name__ == '__main__':
               #np.save(str(s.name)+"_Y.npy", s.Y)
               s.save_inference(model_name="Dense", path=inferencedir)
               s.save_inference(model_name="Dense", path=flavordir, flavor_split=True)
-              s.save_X()
+              #s.save_X()
       
 
     if 'GRU' in models:
         modelGRU = ClassModel(n_inputs, n_hidden, len(samples),samples,'GRU', n_categories=n_categories)
         if args.train:
             print 'Training gru...'
-            modelGRU.train(samples)
-            modelGRU.save_as_keras(modeldir+'/weights_gru.h5')
-            modelGRU.save_as_tf(modeldir+'/graph_gru.pb')
+            modelGRU.train(samples, modeldir+'/weights_gru.h5')
+            #modelGRU.save_as_keras(modeldir+'/weights_gru.h5')
+            #modelGRU.save_as_tf(modeldir+'/graph_gru.pb')
         else:
             print 'Loading gru...'
-            modelGRU.load_model(modeldir+'weights_gru.h5')
+            modelGRU.load_model(modeldir+'/weights_gru.h5')
         if args.plot:
             for s in samples:
               s.infer(modelGRU)
@@ -565,7 +577,7 @@ if __name__ == '__main__':
               s.save_inference(model_name="GRU", path=inferencedir)
               s.save_inference(model_name="GRU", path=flavordir, flavor_split=True)
 
-    if args.plot:
+    if args.plot and not args.infer:
 
         samples.reverse()
         roccer_hists = {}

@@ -33,7 +33,8 @@ nevts = 1200000
 # files to use for N2, GRU, etc
 N2 = {
     "WW": "BGHToWW_ss.npy",
-    "ZZ": "BGHToZZ_ss.npy"
+    "ZZ": "BGHToZZ_ss.npy",
+    "QCD": "QCD_ss.npy"
 }
 
 Y = {
@@ -43,22 +44,26 @@ Y = {
 
 GRU = {
     "WW": "BGHToWW_gru_Yhat_all.npy",
-    "ZZ": "BGHToZZ_gru_Yhat_all.npy"
+    "ZZ": "BGHToZZ_gru_Yhat_all.npy",
+    "QCD": "QCD_gru_Yhat_all.npy"
 }
 
 DNN = {
     "WW": "BGHToWW_dnn_Yhat_all.npy",
-    "ZZ": "BGHToZZ_dnn_Yhat_all.npy"
+    "ZZ": "BGHToZZ_dnn_Yhat_all.npy",
+    "QCD": "QCD_dnn_Yhat_all.npy"
 }
 
 j_pt = {
     "WW": "WW_j_pt.npy",
-    "ZZ": "ZZ_j_pt.npy"
+    "ZZ": "ZZ_j_pt.npy",
+    "QCD": "QCD_j_pt.npy"
 }
 
 j_msd = {
     "WW": "WW_j_msd.npy",
-    "ZZ": "ZZ_j_msd.npy"
+    "ZZ": "ZZ_j_msd.npy",
+    "QCD": "QCD_j_msd.npy"
 }
 
 weights = {
@@ -172,7 +177,10 @@ def make_roc():
     return
 
 def make_msd_arrays(yhats, k, min_=0, max_=.8, n=5):
-    yhat = yhats[k][:,0]
+    try:
+        yhat = yhats[k][:,0]
+    except:
+        yhat = yhats[k]
     msd = make_arrays(j_msd)[k]
     msds = {}
     for i in np.linspace(min_, max_, n):
@@ -201,7 +209,20 @@ def make_report():
     make_hist_from_arrays(ZZ_DNN_j_msds, weight=False, title="ZZ j_msd filtered by DNN Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
     make_hist_from_arrays(ZZ_GRU_j_msds, weight=False, title="ZZ j_msd filtered by GRU Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
 
-make_report()
+
+def make_QCD_report():
+    make_hist(j_pt, weight=False, title="j_pt (unweighted)", xlabel="j_pt")
+    make_hist(j_msd, weight=False, title="j_msd (unweighted)", xlabel="j_msd", min_=0, max_=200)
+
+    QCD_DNN_j_msds = make_msd_arrays(make_arrays(DNN), "QCD", min_=0.4, max_=0.8, n=5)
+    QCD_GRU_j_msds = make_msd_arrays(make_arrays(GRU), "QCD", min_=0.4, max_=0.8, n=5)
+
+    make_hist_from_arrays(QCD_DNN_j_msds, weight=False, title="QCD j_msd filtered by DNN Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
+    make_hist_from_arrays(QCD_GRU_j_msds, weight=False, title="QCD j_msd filtered by GRU Response (Unweighted)", xlabel="j_msd", min_=0, max_=200)
+
+    
+#make_report()
+make_QCD_report()
 
 out.close()
 

@@ -182,8 +182,8 @@ def make_hists(vars_to_plot):
 
 # jet charge
 #make_hist('jet_charge_k0_l0')
-#j_c_vars = [v for v in var_names if 'jet_charge' in v]
-#make_hists(j_c_vars)
+j_c_vars = [v for v in var_names if 'jet_charge' in v]
+make_hists(j_c_vars)
 
 # kinematics
 #kinematics = ['fj_cpf_pt', 'fj_cpf_eta', 'fj_cpf_phi', 'fj_cpf_dz', 'fj_cpf_pup', 'fj_cpf_q']
@@ -194,6 +194,6 @@ def make_hists(vars_to_plot):
 #make_hist("pt_weight")
 
 #make_hists([v for v in var_names if "cpf" in v])
-make_hist("fj_pt")
+#make_hist("fj_pt")
 
 out.close()

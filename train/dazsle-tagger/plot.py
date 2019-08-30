@@ -7,7 +7,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 # histograms
 
-samples = ["BGHToWW", "BGHToZZ"]
+#samples = ["BGHToWW", "BGHToZZ"]
+samples = ["QCD"]
 
 inf_dir = 'inference/'
 flavor_dir = inf_dir+'flavor_split/'
@@ -34,6 +35,17 @@ filenames = {
         "dnn_base": flavor_dir+"BGHToZZ_dnn_Yhat_",
         "gru_base": flavor_dir+"BGHToZZ_gru_Yhat_",
         "Y_base": flavor_dir+"BGHToZZ_Y_"
+        },
+    "QCD": {
+        "N2": "QCD_ss.npy",
+        "GRU": inf_dir+"QCD_gru_Yhat_all.npy",
+        "DNN": inf_dir+"QCD_dnn_Yhat_all.npy",
+        #"weights": "dazsle_weights_bkg.npy",
+        "weights": "vW.npy",
+        "Y": inf_dir+"QCD_Y_all.npy",
+        "dnn_base": flavor_dir+"QCD_dnn_Yhat_",
+        "gru_base": flavor_dir+"QCD_gru_Yhat_",
+        "Y_base": flavor_dir+"QCD_Y_"
         }
 }
 
@@ -51,6 +63,12 @@ flavor_labels = {
         'cs': 'cc/ss',
         'ud': 'light',
         'b': 'bb'
+    },
+    "QCD": {
+        '': '',
+        'cs': 'cs',
+        'ud': 'ud',
+        'b': 'b'
     },
     "roc": {
         '': '',
@@ -89,6 +107,7 @@ def make_arrays(var):
         try:
             arr = np.load(v[var])
         except:
+            #print "Couldn't load: ", v[var]
             continue
         #print "In make_arrays, ", var, arr.ndim
         if arr.ndim == 1:
@@ -219,11 +238,10 @@ def make_roc(flavors=[""]):
 make_hist("DNN", weight=True, title="DNN", xlabel="Response")
 make_hist("GRU", weight=True, title="GRU", xlabel="Response")
 
-make_flavor_hists("DNN", flavors=flavors, weight=True, title="DNN", xlabel="Response")
-make_flavor_hists("GRU", flavors=flavors, weight=True, title="GRU", xlabel="Response")
+#make_flavor_hists("DNN", flavors=flavors, weight=True, title="DNN", xlabel="Response")
+#make_flavor_hists("GRU", flavors=flavors, weight=True, title="GRU", xlabel="Response")
 
-make_roc()
-#make_roc(flavors=flavors)
-make_roc(flavors=['cs', 'ud'])
+#make_roc()
+#make_roc(flavors=['cs', 'ud'])
 
 out.close()
